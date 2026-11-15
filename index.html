@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Campool: viajes compartidos entre personas verificadas de una misma comunidad. Demo del proyecto.">
 <meta name="robots" content="noindex">
+<meta name="theme-color" content="#6a35ff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Campool">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>Campool</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -817,6 +823,13 @@ h3{font:800 16px/1.2 var(--display);margin:0 0 8px}
 .livecard h3{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .ghost.sos{color:#b00020;border-color:#f3b8c2}
 body.viewer .panel>.impact,body.viewer .panel>.field:not(#out),body.viewer #driverForm,body.viewer #foot,body.viewer #invite,body.viewer .legend,body.viewer #locate,body.viewer #userBar{display:none!important}
+.stars{display:inline-flex;gap:2px}
+.stars button{border:0;background:none;padding:2px 3px;font-size:24px;line-height:1;color:#cfc8e6}
+.stars:hover button{color:var(--lane)}
+.stars button:hover~button{color:#cfc8e6}
+.terms{text-align:left;width:min(560px,calc(100vw - 32px));max-height:86vh;overflow:auto}
+.terms h4{margin:14px 0 4px;font:800 15px/1.2 var(--display)}
+.terms p{margin:0 0 6px;font-size:14px;color:var(--ink)}
 .paxrow{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .paxrow:first-of-type{border-top:0}
 .paxrow .av{width:30px;height:30px;font-size:11px}
@@ -946,6 +959,7 @@ body.viewer .panel>.impact,body.viewer .panel>.field:not(#out),body.viewer #driv
     <div id="out" class="field" style="gap:14px"></div>
 
     <p class="note" id="foot">Demo con personas, autos y viajes de ejemplo; los viajes que aparecen en vivo son una simulación. Las posiciones de las sedes son aproximadas. Proyecto independiente, sin relación oficial con las organizaciones nombradas.</p>
+    <button type="button" class="link" data-terms style="align-self:flex-start">Reglas de uso y privacidad</button>
   </aside>
 
   <main class="mapwrap">
@@ -961,6 +975,29 @@ body.viewer .panel>.impact,body.viewer .panel>.field:not(#out),body.viewer #driv
     <div class="toast" id="toast" role="status" hidden></div>
   </main>
 </div>
+<dialog class="dlg terms" id="terms" aria-labelledby="termsT">
+  <h3 id="termsT">Reglas de uso y privacidad</h3>
+  <p class="note">Versión de prueba. Leelas antes de usar Campool.</p>
+  <h4>Qué es Campool</h4>
+  <p>Campool conecta a personas de una misma comunidad que quieren compartir el viaje. No es una empresa de transporte ni vende viajes. Cada conductor es responsable de su auto, su licencia, su seguro y de respetar las normas de tránsito.</p>
+  <h4>Solo gastos compartidos</h4>
+  <p>Entre todos se divide la nafta y los peajes, incluido el conductor. Nadie cobra de más ni gana plata con el viaje.</p>
+  <h4>Para quién es</h4>
+  <p>Para usar Campool tenés que tener 18 años o más y pertenecer a la comunidad en la que te registrás.</p>
+  <h4>Qué datos guardamos</h4>
+  <p>Tu nombre, tu mail, tu comunidad, lo que escribas en "carrera o equipo", los viajes y pedidos que publiques, las solicitudes y las calificaciones.</p>
+  <p>De tu ubicación se guarda solo una zona aproximada de unas 2 cuadras, corrida al azar. Tu dirección exacta no se guarda ni se muestra.</p>
+  <p>Si iniciás un viaje en vivo, tu posición real se guarda mientras dura el viaje y la ve cualquiera que tenga el link que compartas. Deja de verse 30 minutos después de finalizar.</p>
+  <h4>Quién ve qué</h4>
+  <p>Tus viajes y tu zona los ven solo los miembros aprobados de tu comunidad. El punto de encuentro lo ven solo el conductor y la persona aceptada. No vendemos ni cedemos tus datos.</p>
+  <h4>Convivencia</h4>
+  <p>Tratá bien a los demás, sé puntual y avisá con tiempo si no podés viajar. Quien administra la comunidad puede dar de baja a quien no cumpla.</p>
+  <h4>Tus derechos</h4>
+  <p>Podés pedir que corrijamos o borremos tus datos, o darte de baja, escribiéndole a quien administra tu comunidad.</p>
+  <h4>Seguridad</h4>
+  <p>Viajá con gente de tu comunidad, compartí tu viaje en vivo con alguien de confianza y, ante una emergencia, llamá al 911.</p>
+  <button type="button" class="cta" id="termsClose" style="margin-top:12px">Entendido</button>
+</dialog>
 <dialog class="dlg" id="dlg" aria-labelledby="dlgT">
   <h3 id="dlgT">Sumate a la comunidad</h3>
   <p class="note">Escaneá el código con la cámara del celular para abrir Campool en <b id="dlgOrg"></b>.</p>
@@ -989,6 +1026,7 @@ body.viewer .panel>.impact,body.viewer .panel>.field:not(#out),body.viewer #driv
       <label class="in" for="aCode" data-up>Código de la comunidad<input id="aCode" type="text" autocomplete="off" placeholder="Si te lo pasaron"></label>
       <label class="in wide" for="aAbout" data-up>Carrera o equipo (opcional)<input id="aAbout" type="text" maxlength="80" placeholder="Ej.: Ing. Industrial, 3.º año"></label>
     </div>
+    <label class="check" for="aTerms" data-up><input id="aTerms" type="checkbox"> <span>Leí y acepto las <button type="button" class="link" data-terms style="padding:0">reglas de uso y privacidad</button></span></label>
     <p class="autherr" id="authErr" role="alert" hidden></p>
     <button type="submit" class="cta" id="authGo">Crear mi cuenta</button>
     <p class="note" id="authNote">Con mail institucional o con el código entrás directo. Si no, un administrador de la comunidad aprueba tu ingreso.</p>
@@ -3703,10 +3741,11 @@ const day=()=>DAYS[S.day];
 const CFG=window.CAMPOOL_CONFIG||{};
 const REAL=!!(CFG.supabaseUrl&&CFG.supabaseKey&&window.supabase&&window.supabase.createClient);
 let sb=null, USER=null;
-const RT={trips:[],seeks:[],reqs:[],profiles:{},taken:{},code:null,seen:null,lives:[]};
+const RT={trips:[],seeks:[],reqs:[],profiles:{},taken:{},code:null,seen:null,lives:[],stars:{},rated:{}};
 const zc=x=>x.real?x.ll:blur(x.ll,x.id);            // centro de la zona visible
 const seatsOf=x=>x.seats||4;
-const repTxt=x=>x.real?'Miembro verificado':`★ ${x.rating.toLocaleString('es-AR',{minimumFractionDigits:1})} · ${x.trips} viajes`;
+const starTxt=s=>s&&s.n?`★ ${Number(s.avg).toLocaleString('es-AR',{minimumFractionDigits:1})} · ${s.n} ${s.n===1?'calificación':'calificaciones'}`:'';
+const repTxt=x=>x.real?(starTxt(x.stars)||'Miembro verificado'):`★ ${x.rating.toLocaleString('es-AR',{minimumFractionDigits:1})} · ${x.trips} viajes`;
 function reqOf(d){ if(!d) return {}; if(!d.real) return {st:S.req[d.id], meet:d.meet?d.meet.n+', '+d.time:''};
   const r=RT.reqs.find(q=>q.trip_id===d.id&&q.passenger_id===USER.id&&q.dow===day().dow); if(!r) return {};
   return {st:r.status==='accepted'?'ok':r.status==='pending'?'pend':'no', meet:r.meet, id:r.id}; }
@@ -3948,7 +3987,7 @@ function schedForm(con){ const f=S.form;
     </div>
     <button type="button" class="cta" data-act="plan" style="margin-top:12px">${con?'Programar viaje':'Programar pedido'}</button></div>`; }
 function needLoc(){ return '<div class="card"><h3>Falta tu ubicación</h3><p class="note" style="margin-bottom:10px">Para pedir o publicar viajes, Campool necesita tu ubicación real. Los demás solo ven una zona de 2 cuadras.</p><button type="button" class="cta" data-act="needloc">Activar ubicación</button></div>'; }
-function topCards(){ return liveCard()+incomingCard()+adminCard()+plansCard(); }
+function topCards(){ return liveCard()+incomingCard()+adminCard()+rateCard()+plansCard(); }
 function renderOut(force){
   if(S.viewer) return;
   const o=$('out'), s=sede(), a=document.activeElement;
@@ -3960,8 +3999,8 @@ function renderOut(force){
       const list=drv().sort((a,b)=>(a.mine?99:a.near??9)-(b.mine?99:b.near??9));
       const freeSum=list.reduce((a,x)=>a+x.free,0), cap=day().on[0].toUpperCase()+day().on.slice(1);
       o.innerHTML=stepper()+topCards()+`<div class="listhead"><h3 style="margin:0">Viajes ${day().of} a ${s.name}</h3>${REAL?'<span class="livepill"><i></i>En vivo</span>':`<button type="button" class="livepill ${S.liveOn?'':'off'}" data-act="live" aria-pressed="${S.liveOn}"><i></i>${S.liveOn?'En vivo · simulación':'Simulación en pausa'}</button>`}</div><p class="pulse">${cap} en ${org().name}: <b>${list.length}</b> ${list.length===1?'viaje':'viajes'} · <b>${freeSum}</b> ${freeSum===1?'lugar libre':'lugares libres'} · <b>${pax().length}</b> ${pax().length===1?'persona buscando':'personas buscando'}</p>`+(list.length?'':`<div class="empty">Todavía no hay viajes publicados para ${day().on}. Probá otro día o programá tu pedido.</div>`)+`<div class="rides ${performance.now()<S.enterUntil?'enter':''}">`+list.map((x,ix)=>{const taken=seatsOf(x)-x.free, isNew=x.fresh>performance.now(), r=x.routes&&x.routes[0], c=r&&cost(r,x.kml,taken+2);
-        return `<button type="button" class="ride ${isNew?'new':''}" style="--i:${ix}" data-act="sel" data-id="${x.id}"><span class="av">${esc(x.ini)}</span><span><span class="who">${esc(x.name)}</span> <span class="meta">${repTxt(x)}</span><br><span class="meta">${esc(x.who)}</span><br><span class="meta">Sale ${esc(x.time)} de ${esc(x.zone)} · ${esc(x.car)}</span><span class="chips">${x.mine?'<span class="chip best">Tu viaje</span>':ix===0&&x.near!=null&&list.length>1?'<span class="chip best">Mejor para vos</span>':''}${isNew?'<span class="chip fresh">Recién publicado</span>':''}<span class="chip ${x.free<=1?'hot':'seat'}">${seats(taken+1,x.free)} ${x.free===0?'Completo':x.free===1?'Último lugar':x.free+' lugares'}</span>${x.near!=null&&x.near<0.8?'<span class="chip near">Pasa a '+nearTxt(x.near)+' de tu zona</span>':(x.near!=null?'<span class="chip">Pasa a '+nearTxt(x.near)+'</span>':'')}</span></span><span class="price"><b>${c?money10(c.per):'…'}</b><small>por persona</small></span></button>`;}).join('')+`</div>
-        <p class="note">Cada círculo del mapa marca una zona de unas 2 cuadras, corrida al azar: nadie ve tu dirección. El punto de encuentro exacto aparece cuando el conductor te acepta. ${REAL?'Tu zona sale de tu ubicación real; tocá el botón de ubicación del mapa para actualizarla.':'Arrastrá el pin <b>Vos</b> o tocá el botón de ubicación del mapa para cambiar tu zona.'}</p>`+(S.located?'':needLoc())+(REAL?'':rankCard())+schedForm(false);
+        return `<button type="button" class="ride ${isNew?'new':''}" style="--i:${ix}" data-act="sel" data-id="${x.id}"><span class="av">${esc(x.ini)}</span><span><span class="who">${esc(x.name)}</span> <span class="meta">${repTxt(x)}</span><br><span class="meta">${esc(x.who)}</span><br><span class="meta">Sale ${esc(x.time)} de ${esc(x.zone)} · ${esc(x.car)}</span><span class="chips">${x.mine?'<span class="chip best">Tu viaje</span>':ix===0&&x.near!=null&&list.length>1?'<span class="chip best">Mejor para vos</span>':''}${x.match?'<span class="chip near">Coincide con tu pedido</span>':''}${isNew?'<span class="chip fresh">Recién publicado</span>':''}<span class="chip ${x.free<=1?'hot':'seat'}">${seats(taken+1,x.free)} ${x.free===0?'Completo':x.free===1?'Último lugar':x.free+' lugares'}</span>${x.near!=null&&x.near<0.8?'<span class="chip near">Pasa a '+nearTxt(x.near)+' de tu zona</span>':(x.near!=null?'<span class="chip">Pasa a '+nearTxt(x.near)+'</span>':'')}</span></span><span class="price"><b>${c?money10(c.per):'…'}</b><small>por persona</small></span></button>`;}).join('')+`</div>
+        <p class="note">Cada círculo del mapa marca una zona de unas 2 cuadras, corrida al azar: nadie ve tu dirección. El punto de encuentro exacto aparece cuando el conductor te acepta. ${REAL?'Tu zona sale de tu ubicación real; tocá el botón de ubicación del mapa para actualizarla.':'Arrastrá el pin <b>Vos</b> o tocá el botón de ubicación del mapa para cambiar tu zona.'}</p>`+(S.located?'':needLoc())+(REAL?'':rankCard())+schedForm(false)+membersCard()+installCard();
       return;
     }
     const taken=seatsOf(d)-d.free, people=taken+2, r=d.routes&&(d.routes[S.ri]||d.routes[0]), rq=reqOf(d), st=rq.st, first=esc(d.name.split(' ')[0]);
@@ -4021,6 +4060,13 @@ $('out').addEventListener('click',e=>{const b=e.target.closest('[data-act]'); if
   else if(a==='live'){S.liveOn=!S.liveOn; renderOut();}
   else if(a==='route') pick(+b.dataset.i);
   else if(a==='needloc'||(REAL&&!S.located&&(a==='req'||a==='plan'))){ askLocation().then(()=>refresh(true)); }
+  else if(a==='rate'){ b.disabled=true; realRate(b.dataset.id,+b.dataset.s); }
+  else if(a==='members'){ S.membersOpen=!S.membersOpen; S.kick=null; renderOut(true); }
+  else if(a==='kick'){ S.kick=b.dataset.id; renderOut(true); }
+  else if(a==='kickno'){ S.kick=null; renderOut(true); }
+  else if(a==='kickyes'){ b.disabled=true; S.kick=null; realApprove(b.dataset.id,false); }
+  else if(a==='installx'){ try{localStorage.setItem('campool-install-x','1');}catch(e){} S.installX=true; renderOut(true); }
+  else if(a==='installgo'){ if(S.installEv){ S.installEv.prompt(); S.installEv=null; } }
   else if(a==='golive'){ b.disabled=true; liveStart(b.dataset.id); }
   else if(a==='endlive'){ b.disabled=true; liveStop(b.dataset.id); }
   else if(a==='copylive'){ navigator.clipboard.writeText(b.dataset.url).then(()=>toast('Link copiado.'),()=>toast('No se pudo copiar. Usá el botón de WhatsApp.')); }
@@ -4119,7 +4165,7 @@ function plans(){ if(!REAL) return S.plans; if(!USER) return [];
   return out; }
 function incomingCard(){ if(!REAL||!USER) return ''; const mine=RT.trips.filter(t=>t.driver_id===USER.id).map(t=>t.id), inc=RT.reqs.filter(r=>mine.includes(r.trip_id)&&r.status==='pending'); if(!inc.length) return '';
   return `<div class="card"><h3>Te pidieron lugar</h3>${inc.map(r=>{const p=RT.profiles[r.passenger_id]||{}, tr=RT.trips.find(x=>x.id===r.trip_id)||{};
-    return `<div class="inc"><div class="paxrow"><span class="av pax">${esc(inis(p.name))}</span><span style="flex:1"><span class="who">${esc(short(p.name))}</span><br><span class="meta">${esc(r.day_label)} · salís ${esc(tr.depart||'')}${p.about?' · '+esc(p.about):''}</span></span></div>
+    return `<div class="inc"><div class="paxrow"><span class="av pax">${esc(inis(p.name))}</span><span style="flex:1"><span class="who">${esc(short(p.name))}</span><br><span class="meta">${esc(r.day_label)} · salís ${esc(tr.depart||'')}${p.about?' · '+esc(p.about):''}${starTxt(RT.stars[r.passenger_id])?' · '+starTxt(RT.stars[r.passenger_id]):''}</span></span></div>
       <label class="in" for="meet-${esc(r.id)}">Punto de encuentro y hora<input id="meet-${esc(r.id)}" type="text" maxlength="200" placeholder="Ej.: Cabildo y Juramento, 7:15" value="${esc(S.meet[r.id]||'')}"></label>
       <div class="row2"><button type="button" class="cta" style="padding:10px" data-act="accept" data-id="${esc(r.id)}">Aceptar</button><button type="button" class="ghost" data-act="reject" data-id="${esc(r.id)}">No puedo</button></div></div>`;}).join('')}</div>`; }
 function adminCard(){ if(!REAL||!USER||USER.role!=='admin') return ''; const pend=Object.values(RT.profiles).filter(p=>p.status==='pending'); if(!pend.length) return '';
@@ -4132,7 +4178,8 @@ function rebuild(){
   const old={}; DRIVERS.forEach(d=>old[d.id]=d); const first=RT.seen===null, seen={}; DRIVERS.length=0; PAX.length=0;
   for(const tr of RT.trips){ const p=RT.profiles[tr.driver_id]||{}, o=old[tr.id], same=o&&o.ll[0]===tr.zone_lat&&o.ll[1]===tr.zone_lng, mine=tr.driver_id===USER.id;
     const d={id:tr.id,real:true,mine,sede:tr.sede,name:short(p.name),ini:inis(p.name),who:p.about||'Miembro de '+org().name,car:tr.car||'Auto',kml:+tr.kml,seats:tr.seats,days:tr.days||[],time:tr.depart,back:tr.back,
-      zone:tr.zone_name||'su zona',ll:[tr.zone_lat,tr.zone_lng],routes:same?o.routes:null,near:same?o.near:null,fresh:o?o.fresh:0,free:0};
+      zone:tr.zone_name||'su zona',ll:[tr.zone_lat,tr.zone_lng],routes:same?o.routes:null,near:same?o.near:null,fresh:o?o.fresh:0,free:0,stars:RT.stars[tr.driver_id],
+      match:!mine&&RT.seeks.some(s=>s.user_id===USER.id&&s.sede===tr.sede&&(s.days||[]).some(x=>(tr.days||[]).includes(x)))};
     if(!first&&!o&&!mine){ d.fresh=performance.now()+9000; toast(`Nuevo viaje: ${d.name} sale ${d.time} de ${d.zone}`); }
     DRIVERS.push(d); }
   for(const s of RT.seeks){ if(s.user_id===USER.id) continue; const p=RT.profiles[s.user_id]||{}; PAX.push({id:s.id,real:true,sede:s.sede,name:short(p.name),ini:inis(p.name),zone:s.zone_name||'su zona',ll:[s.zone_lat,s.zone_lng],days:s.days||[]}); }
@@ -4153,6 +4200,8 @@ async function sync(){ if(!USER) return;
   try{ const lv=await sb.from('live_trips').select('id,token,trip_id,started_by,label,dest_name,started_at,ended_at'); S.noLive=!!lv.error;
     RT.lives=(lv.data||[]).filter(l=>!l.ended_at&&Date.now()-new Date(l.started_at).getTime()<8*3600e3); }catch(e){ S.noLive=true; RT.lives=[]; }
   const mineLive=RT.lives.find(l=>l.started_by===USER.id); if(mineLive) startTrack(mineLive.id); else if(TRK.id) stopTrack();
+  if(S.ver>=3){ try{ const [st,rd]=await Promise.all([sb.rpc('ratings_summary'),sb.from('ratings').select('request_id,stars')]);
+    RT.stars={}; ((st&&st.data)||[]).forEach(x=>{RT.stars[x.user_id]=x;}); RT.rated={}; ((rd&&rd.data)||[]).forEach(x=>{RT.rated[x.request_id]=x.stars;}); }catch(e){} }
   rebuild(); }
 let syncT=null; const syncSoon=()=>{ clearTimeout(syncT); syncT=setTimeout(sync,350); };
 function listen(){
@@ -4178,6 +4227,29 @@ async function realPlan(){ const f=S.form, con=S.role==='con', z=blur(S.me,USER.
   await sync(); renderOut(true); $('out').scrollIntoView({block:'start',behavior:'smooth'}); }
 async function realDelPlan(pid){ const [kind,id]=pid.split(':'); const res=kind==='req'?await sb.rpc('cancel_request',{req:id}):await sb.from(kind==='trip'?'trips':'seeks').delete().eq('id',id);
   if(res.error) toast('No se pudo cancelar. Probá de nuevo.'); await sync(); renderOut(true); }
+/* --- Calificaciones, miembros e instalación --- */
+async function realRate(id, n){ const {error}=await sb.rpc('rate',{req:id,stars_given:n}); toast(error?'No se pudo guardar la calificación. Probá de nuevo.':'Gracias por calificar.'); await sync(); renderOut(true); }
+function rateCard(){ if(!REAL||!USER||!(S.ver>=3)) return ''; const mine=RT.trips.filter(tr=>tr.driver_id===USER.id).map(tr=>tr.id), rows=[];
+  for(const r of RT.reqs){ if(r.status!=='accepted'||RT.rated[r.id]) continue; const tr=RT.trips.find(x=>x.id===r.trip_id); if(!tr) continue;
+    const other=r.passenger_id===USER.id?tr.driver_id:(mine.includes(r.trip_id)?r.passenger_id:null); if(!other) continue;
+    rows.push(`<div class="paxrow"><span style="flex:1"><span class="who">${esc(short((RT.profiles[other]||{}).name))}</span><br><span class="meta">${esc(r.day_label)} · ${esc(tr.depart)}</span></span><span class="stars" role="group" aria-label="Calificación de 1 a 5">${[1,2,3,4,5].map(n=>`<button type="button" data-act="rate" data-id="${esc(r.id)}" data-s="${n}" aria-label="${n} ${n===1?'estrella':'estrellas'}">★</button>`).join('')}</span></div>`); }
+  return rows.length?`<div class="card"><h3>¿Cómo estuvo el viaje?</h3><p class="note">Calificá después de viajar. La otra persona ve solo su promedio, no quién puso cada nota.</p>${rows.slice(0,4).join('')}</div>`:''; }
+function membersCard(){ if(!REAL||!USER||USER.role!=='admin') return ''; const all=Object.values(RT.profiles).filter(p=>p.status==='approved').sort((a,b)=>a.name.localeCompare(b.name));
+  if(!S.membersOpen) return `<button type="button" class="ghost" data-act="members">Administrar ${org().name}: ${all.length} ${all.length===1?'miembro':'miembros'}</button>`;
+  return `<div class="card"><h3>Miembros de ${org().name}</h3><p class="note">${RT.code?'Código para entrar: <b>'+esc(RT.code)+'</b> · ':''}${RT.trips.length} ${RT.trips.length===1?'viaje publicado':'viajes publicados'} · ${RT.seeks.length} ${RT.seeks.length===1?'pedido':'pedidos'}</p>
+    ${all.map(p=>`<div class="paxrow"><span class="av" style="width:30px;height:30px;font-size:11px">${esc(inis(p.name))}</span><span style="flex:1"><span class="who">${esc(p.name)}</span><br><span class="meta">${esc(p.about||'Sin datos')}${p.role==='admin'?' · administra':''}${starTxt(RT.stars[p.id])?' · '+starTxt(RT.stars[p.id]):''}</span></span>
+      ${p.role==='admin'?'':S.kick===p.id?`<button type="button" class="link" data-act="kickyes" data-id="${esc(p.id)}" style="color:#b00020">Confirmar baja</button><button type="button" class="link" data-act="kickno">Cancelar</button>`:`<button type="button" class="link" data-act="kick" data-id="${esc(p.id)}">Dar de baja</button>`}</div>`).join('')}
+    <button type="button" class="link" data-act="members" style="margin-top:6px">Cerrar</button></div>`; }
+// En el celular, Campool se puede dejar en la pantalla de inicio como una app.
+const isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent||''), isStandalone=()=>!!((window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone);
+try{ S.installX=localStorage.getItem('campool-install-x')==='1'; }catch(e){}
+window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); S.installEv=e; });
+function installCard(){ if(!hosted||!isMobile||isStandalone()||S.installX) return ''; const ios=/iPhone|iPad|iPod/i.test(navigator.userAgent||'');
+  return `<div class="card"><h3>Tené Campool a mano</h3><p class="note" style="margin-bottom:8px">${S.installEv?'Instalala y abrila desde la pantalla de inicio, como cualquier app.':ios?'En Safari tocá el botón Compartir y elegí "Agregar a inicio". Queda como una app más.':'En el menú del navegador (los tres puntos) elegí "Agregar a pantalla principal" o "Instalar app".'}</p>
+    ${S.installEv?'<button type="button" class="cta" data-act="installgo">Instalar Campool</button>':''}<button type="button" class="link" data-act="installx">No mostrar más</button></div>`; }
+document.addEventListener('click',e=>{ if(e.target.closest('[data-terms]')){ const d=$('terms'); if(d.showModal) d.showModal(); else d.setAttribute('open',''); } });
+$('termsClose').addEventListener('click',()=>{ const d=$('terms'); if(d.close) d.close(); else d.removeAttribute('open'); });
+
 /* --- Viaje en vivo: quien participa lo comparte y cualquiera con el link lo sigue --- */
 const TRK={id:null,w:null,t:0,ll:null,lock:null,beat:null};
 const siteBase=()=>hosted?location.origin+location.pathname:(PUBLIC_URL||location.href.split('#')[0].split('?')[0]);
@@ -4265,6 +4337,7 @@ async function enterApp(){
   S.org=ORGS.some(o=>o.id===p.org_id)?p.org_id:S.org; S.sede=org().sedes[0]; S.sel=null;
   $('userBar').hidden=false; $('userName').textContent='Hola, '+short(p.name).split(' ')[0]+(p.role==='admin'?' · administrás '+org().name:'');
   $('foot').textContent='Versión de prueba con cuentas reales. Cada persona ve solo su comunidad y solo zonas de 2 cuadras. Proyecto independiente, sin relación oficial con las organizaciones nombradas.';
+  try{ const v=await sb.rpc('schema_version'); S.ver=(v&&!v.error&&+v.data)||1; }catch(e){ S.ver=1; }   // qué funciones tiene cargadas la base
   paintSeg(); const loading=sync();
   if(!S.located) await askLocation(); else $('auth').hidden=true;   // el permiso de ubicación es lo primero que se pide
   await loading; onSize(); refresh(true);
@@ -4281,6 +4354,7 @@ function initReal(){
     if(up&&name.length<2) return authErr('Escribí tu nombre y apellido.');
     if(!/^\S+@\S+\.\S+$/.test(email)) return authErr('Revisá el mail: parece incompleto.');
     if(pass.length<8) return authErr('La contraseña tiene que tener al menos 8 caracteres.');
+    if(up&&!$('aTerms').checked) return authErr('Para crear la cuenta tenés que aceptar las reglas de uso y privacidad.');
     $('authGo').disabled=true; let res;
     try{ res=up?await sb.auth.signUp({email,password:pass,options:{data:{name,org:$('aOrg').value,code:$('aCode').value.trim(),about:$('aAbout').value.trim()}}}):await sb.auth.signInWithPassword({email,password:pass}); }catch(er){ res={error:er}; }
     $('authGo').disabled=false;

@@ -96,7 +96,23 @@ create table if not exists public.live_trips (
   trail jsonb not null default '[]'::jsonb
 );
 
+-- ============ Calificaciones después del viaje ============
+-- Conductor y pasajero de una solicitud aceptada se califican entre sí con 1 a 5 estrellas. Una por persona y por viaje.
+create table if not exists public.ratings (
+  id uuid primary key default gen_random_uuid(),
+  request_id uuid not null,
+  org_id text not null references public.orgs,
+  rater_id uuid not null references public.profiles on delete cascade,
+  ratee_id uuid not null references public.profiles on delete cascade,
+  stars int not null check (stars between 1 and 5),
+  created_at timestamptz not null default now(),
+  unique (request_id, rater_id)
+);
+
 -- ============ Funciones de apoyo ============
+-- Versión del esquema: la app la consulta para saber qué funciones están disponibles.
+create or replace function public.schema_version() returns int language sql immutable as $$ select 3 $$;
+
 create or replace function public.my_org() returns text
 language sql stable security definer set search_path = public as $$
   select org_id from public.profiles where id = auth.uid() and status = 'approved'
@@ -212,6 +228,29 @@ language sql stable security definer set search_path = public as $$
      and (l.ended_at is null or l.ended_at > now() - interval '30 minutes')
 $$;
 
+-- Califica a la otra persona de una solicitud aceptada. Si ya había calificado, actualiza.
+create or replace function public.rate(req uuid, stars_given int) returns void
+language plpgsql security definer set search_path = public as $$
+declare r public.requests%rowtype; t public.trips%rowtype; other uuid;
+begin
+  if stars_given is null or stars_given not between 1 and 5 then raise exception 'La calificación va de 1 a 5'; end if;
+  select * into r from public.requests where id = req and status = 'accepted';
+  if not found then raise exception 'Solo se califican viajes aceptados'; end if;
+  select * into t from public.trips where id = r.trip_id;
+  if auth.uid() = r.passenger_id then other := t.driver_id;
+  elsif auth.uid() = t.driver_id then other := r.passenger_id;
+  else raise exception 'No participaste de este viaje'; end if;
+  insert into public.ratings (request_id, org_id, rater_id, ratee_id, stars) values (req, t.org_id, auth.uid(), other, stars_given)
+  on conflict (request_id, rater_id) do update set stars = excluded.stars, created_at = now();
+end $$;
+
+-- Promedio y cantidad de calificaciones de cada persona de mi comunidad (sin decir quién puso qué).
+create or replace function public.ratings_summary() returns table (user_id uuid, avg numeric, n int)
+language sql stable security definer set search_path = public as $$
+  select g.ratee_id, round(avg(g.stars)::numeric, 1), count(*)::int from public.ratings g
+   where g.org_id = public.my_org() group by g.ratee_id
+$$;
+
 -- ============ Reglas de acceso (cada quien ve solo su comunidad) ============
 alter table public.orgs enable row level security;      -- sin políticas: nadie lee los códigos desde la app
 alter table public.profiles enable row level security;
@@ -265,7 +304,14 @@ create policy live_add on public.live_trips for insert to authenticated
                    or exists (select 1 from public.requests r where r.trip_id = live_trips.trip_id and r.passenger_id = auth.uid() and r.status = 'accepted')));
 revoke update, delete on public.live_trips from anon, authenticated;   -- la posición se guarda solo con live_ping
 
-revoke all on public.orgs, public.profiles, public.trips, public.seeks, public.requests, public.live_trips from anon;
+alter table public.ratings enable row level security;
+drop policy if exists ratings_read_own on public.ratings;
+create policy ratings_read_own on public.ratings for select to authenticated using (rater_id = auth.uid());   -- cada quien ve solo las que puso
+revoke insert, update, delete on public.ratings from anon, authenticated;                                    -- se califica solo con rate()
+
+revoke all on public.orgs, public.profiles, public.trips, public.seeks, public.requests, public.live_trips, public.ratings from anon;
+revoke execute on function public.rate(uuid, int), public.ratings_summary() from public, anon;
+grant execute on function public.rate(uuid, int), public.ratings_summary(), public.schema_version() to authenticated;
 revoke execute on function public.live_ping(uuid, double precision, double precision), public.live_end(uuid) from public, anon;
 grant execute on function public.live_ping(uuid, double precision, double precision), public.live_end(uuid) to authenticated;
 grant execute on function public.live_view(text) to anon, authenticated;   -- el link público

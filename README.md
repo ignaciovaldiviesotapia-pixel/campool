@@ -11,6 +11,7 @@ Proyecto independiente, sin relación oficial con las organizaciones que aparece
 | `index.html` | La aplicación completa (mapa, rutas, costos, cuentas). |
 | `config.js` | Los dos datos que conectan la página con la base de datos. Vacío = modo demo. |
 | `supabase/schema.sql` | Las tablas y las reglas de privacidad de la base de datos. |
+| `manifest.webmanifest`, `icon-*.png` | Nombre e íconos para instalarla como app en el celular. |
 
 ## Dos modos
 
@@ -47,6 +48,22 @@ Quien participa de un viaje (conductor o pasajero aceptado) puede tocar **"Inici
 - La página pública tiene un botón para llamar al 911.
 
 Si actualizaste desde una versión anterior, volvé a correr `supabase/schema.sql` completo en el SQL Editor: agrega la tabla del viaje en vivo y no toca lo que ya existe.
+
+## Calificaciones
+
+Después de un viaje aceptado, conductor y pasajero se califican entre sí con 1 a 5 estrellas. Cada persona muestra su promedio; nadie ve quién puso cada nota.
+
+## Administrar la comunidad
+
+Quien administra ve, al final de la lista de viajes, el botón "Administrar": muestra el código de ingreso, los miembros y permite dar de baja a alguien. Los pedidos de ingreso pendientes aparecen arriba de todo.
+
+## Instalarla como app
+
+En el celular se puede dejar en la pantalla de inicio: en Android, desde el menú del navegador ("Agregar a pantalla principal" o "Instalar app"); en iPhone, desde Safari con Compartir → "Agregar a inicio".
+
+## Reglas de uso y privacidad
+
+Al crear la cuenta hay que aceptar las reglas, que se pueden leer desde el registro y desde el pie de la app. Son un borrador en lenguaje simple: conviene revisarlas con un abogado antes de abrir la app a mucha gente.
 
 ## Ubicación
 

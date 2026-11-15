@@ -1,0 +1,217 @@
+-- Campool · base de datos (Supabase / PostgreSQL)
+-- Pegá este archivo completo en Supabase → SQL Editor → Run. Se puede volver a correr sin romper nada.
+
+-- ============ Comunidades ============
+create table if not exists public.orgs (
+  id text primary key,
+  name text not null,
+  join_code text not null,            -- código que se le pasa a la gente para entrar
+  email_domain text,                  -- si el mail termina así, entra sin código (ej. itba.edu.ar)
+  auto_approve boolean not null default true  -- false: aunque tenga código, espera a un administrador
+);
+insert into public.orgs (id, name, join_code, email_domain) values
+  ('itba', 'ITBA', 'ITBA-2026', 'itba.edu.ar'),
+  ('ww', 'WeWork Vicente López', 'WEWORK-2026', null)
+on conflict (id) do nothing;
+
+-- ============ Personas ============
+create table if not exists public.profiles (
+  id uuid primary key references auth.users on delete cascade,
+  org_id text not null references public.orgs,
+  name text not null check (char_length(name) between 2 and 60),
+  about text not null default '' check (char_length(about) <= 80),
+  status text not null default 'pending' check (status in ('pending','approved','blocked')),
+  role text not null default 'member' check (role in ('member','admin')),
+  created_at timestamptz not null default now()
+);
+
+-- ============ Viajes que ofrece un conductor ============
+create table if not exists public.trips (
+  id uuid primary key default gen_random_uuid(),
+  org_id text not null references public.orgs,
+  driver_id uuid not null default auth.uid() references public.profiles on delete cascade,
+  sede text not null,
+  days int[] not null,                -- 1 = lunes ... 6 = sábado
+  depart text not null,               -- hora de salida, "07:30"
+  back text not null default '',
+  zone_name text not null default '',
+  zone_lat double precision not null, -- centro de la zona de 2 cuadras, ya corrido: nunca la dirección
+  zone_lng double precision not null,
+  seats int not null check (seats between 1 and 6),
+  car text not null default '',
+  kml numeric not null check (kml between 3 and 40),
+  repeat boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+-- ============ Pedidos de quien busca viaje ============
+create table if not exists public.seeks (
+  id uuid primary key default gen_random_uuid(),
+  org_id text not null references public.orgs,
+  user_id uuid not null default auth.uid() references public.profiles on delete cascade,
+  sede text not null,
+  days int[] not null,
+  arrive text not null,
+  back text not null default '',
+  zone_name text not null default '',
+  zone_lat double precision not null,
+  zone_lng double precision not null,
+  repeat boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+-- ============ Solicitudes de lugar ============
+create table if not exists public.requests (
+  id uuid primary key default gen_random_uuid(),
+  trip_id uuid not null references public.trips on delete cascade,
+  passenger_id uuid not null default auth.uid() references public.profiles on delete cascade,
+  dow int not null check (dow between 1 and 6),
+  day_label text not null default '',
+  status text not null default 'pending' check (status in ('pending','accepted','rejected','cancelled')),
+  meet text not null default '' check (char_length(meet) <= 200),  -- punto de encuentro: lo escribe el conductor al aceptar
+  est_share numeric not null default 0,
+  est_saved numeric not null default 0,
+  est_km numeric not null default 0,
+  created_at timestamptz not null default now(),
+  unique (trip_id, passenger_id, dow)
+);
+
+-- ============ Funciones de apoyo ============
+create or replace function public.my_org() returns text
+language sql stable security definer set search_path = public as $$
+  select org_id from public.profiles where id = auth.uid() and status = 'approved'
+$$;
+
+create or replace function public.is_admin() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.profiles where id = auth.uid() and role = 'admin' and status = 'approved')
+$$;
+
+-- Al registrarse alguien se crea su perfil. Entra aprobado si es la primera persona de la comunidad
+-- (queda como administradora), si su mail es del dominio de la comunidad o si trae el código correcto.
+create or replace function public.handle_new_user() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  m jsonb := coalesce(new.raw_user_meta_data, '{}'::jsonb);
+  o public.orgs%rowtype;
+  first_one boolean;
+  ok boolean;
+begin
+  select * into o from public.orgs where id = m->>'org';
+  if not found then raise exception 'Comunidad desconocida'; end if;
+  select not exists (select 1 from public.profiles where org_id = o.id and role = 'admin') into first_one;
+  ok := first_one
+     or (o.email_domain is not null and lower(new.email) like '%@' || lower(o.email_domain))
+     or (o.auto_approve and upper(trim(coalesce(m->>'code', ''))) = upper(o.join_code));
+  insert into public.profiles (id, org_id, name, about, status, role)
+  values (new.id, o.id, left(trim(coalesce(nullif(m->>'name', ''), 'Sin nombre')), 60), left(trim(coalesce(m->>'about', '')), 80),
+          case when ok then 'approved' else 'pending' end, case when first_one then 'admin' else 'member' end);
+  return new;
+end $$;
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created after insert on auth.users for each row execute function public.handle_new_user();
+
+-- Un administrador aprueba o bloquea a alguien de su comunidad.
+create or replace function public.approve_member(uid uuid, ok boolean) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'Solo un administrador puede hacer esto'; end if;
+  update public.profiles set status = case when ok then 'approved' else 'blocked' end
+   where id = uid and org_id = public.my_org() and role <> 'admin';
+end $$;
+
+-- El código de la comunidad, solo para administradores (para pasárselo a la gente).
+create or replace function public.org_code() returns text
+language sql stable security definer set search_path = public as $$
+  select o.join_code from public.orgs o where o.id = public.my_org() and public.is_admin()
+$$;
+
+-- Lugares ya ocupados por viaje y día, sin revelar quiénes son.
+create or replace function public.taken_counts() returns table (trip_id uuid, dow int, n int)
+language sql stable security definer set search_path = public as $$
+  select r.trip_id, r.dow, count(*)::int from public.requests r
+    join public.trips t on t.id = r.trip_id
+   where r.status = 'accepted' and t.org_id = public.my_org()
+   group by r.trip_id, r.dow
+$$;
+
+-- El conductor acepta o rechaza una solicitud; al aceptar escribe el punto de encuentro.
+create or replace function public.respond_request(req uuid, accept boolean, meet_text text default '') returns void
+language plpgsql security definer set search_path = public as $$
+declare r public.requests%rowtype; t public.trips%rowtype; used int;
+begin
+  select * into r from public.requests where id = req;
+  if not found then raise exception 'La solicitud no existe'; end if;
+  select * into t from public.trips where id = r.trip_id;
+  if t.driver_id <> auth.uid() then raise exception 'Solo el conductor puede responder'; end if;
+  if accept then
+    select count(*) into used from public.requests where trip_id = r.trip_id and dow = r.dow and status = 'accepted' and id <> r.id;
+    if used >= t.seats then raise exception 'Ya no quedan lugares para ese día'; end if;
+    update public.requests set status = 'accepted', meet = left(coalesce(meet_text, ''), 200) where id = req;
+  else
+    update public.requests set status = 'rejected' where id = req;
+  end if;
+end $$;
+
+-- Quien pidió el lugar puede retirar su solicitud (se borra, así puede volver a pedir más adelante).
+create or replace function public.cancel_request(req uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  delete from public.requests where id = req and passenger_id = auth.uid();
+end $$;
+
+-- ============ Reglas de acceso (cada quien ve solo su comunidad) ============
+alter table public.orgs enable row level security;      -- sin políticas: nadie lee los códigos desde la app
+alter table public.profiles enable row level security;
+alter table public.trips enable row level security;
+alter table public.seeks enable row level security;
+alter table public.requests enable row level security;
+
+drop policy if exists profiles_read on public.profiles;
+create policy profiles_read on public.profiles for select to authenticated
+  using (id = auth.uid() or (org_id = public.my_org() and (status = 'approved' or public.is_admin())));
+drop policy if exists profiles_edit on public.profiles;
+create policy profiles_edit on public.profiles for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
+revoke insert, update, delete on public.profiles from anon, authenticated;
+grant update (name, about) on public.profiles to authenticated;   -- nadie puede aprobarse solo ni cambiarse de comunidad
+
+drop policy if exists trips_read on public.trips;
+create policy trips_read on public.trips for select to authenticated using (org_id = public.my_org());
+drop policy if exists trips_add on public.trips;
+create policy trips_add on public.trips for insert to authenticated with check (driver_id = auth.uid() and org_id = public.my_org());
+drop policy if exists trips_del on public.trips;
+create policy trips_del on public.trips for delete to authenticated using (driver_id = auth.uid());
+revoke update on public.trips from anon, authenticated;
+
+drop policy if exists seeks_read on public.seeks;
+create policy seeks_read on public.seeks for select to authenticated using (org_id = public.my_org());
+drop policy if exists seeks_add on public.seeks;
+create policy seeks_add on public.seeks for insert to authenticated with check (user_id = auth.uid() and org_id = public.my_org());
+drop policy if exists seeks_del on public.seeks;
+create policy seeks_del on public.seeks for delete to authenticated using (user_id = auth.uid());
+revoke update on public.seeks from anon, authenticated;
+
+drop policy if exists requests_read on public.requests;
+create policy requests_read on public.requests for select to authenticated
+  using (passenger_id = auth.uid() or exists (select 1 from public.trips t where t.id = trip_id and t.driver_id = auth.uid()));
+drop policy if exists requests_add on public.requests;
+create policy requests_add on public.requests for insert to authenticated
+  with check (passenger_id = auth.uid() and status = 'pending' and meet = ''
+              and exists (select 1 from public.trips t where t.id = trip_id and t.org_id = public.my_org() and t.driver_id <> auth.uid()));
+revoke update, delete on public.requests from anon, authenticated;   -- se responde y se cancela solo con las funciones de arriba
+
+revoke all on public.orgs, public.profiles, public.trips, public.seeks, public.requests from anon;
+revoke execute on function public.approve_member(uuid, boolean), public.org_code(), public.taken_counts(),
+  public.respond_request(uuid, boolean, text), public.cancel_request(uuid) from public, anon;
+grant execute on function public.approve_member(uuid, boolean), public.org_code(), public.taken_counts(),
+  public.respond_request(uuid, boolean, text), public.cancel_request(uuid) to authenticated;
+
+-- ============ Avisos en vivo ============
+do $$ begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    begin alter publication supabase_realtime add table public.trips; exception when duplicate_object then null; end;
+    begin alter publication supabase_realtime add table public.seeks; exception when duplicate_object then null; end;
+    begin alter publication supabase_realtime add table public.requests; exception when duplicate_object then null; end;
+    begin alter publication supabase_realtime add table public.profiles; exception when duplicate_object then null; end;
+  end if;
+end $$;

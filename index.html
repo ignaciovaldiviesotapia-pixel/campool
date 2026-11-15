@@ -932,7 +932,7 @@ h3{font:800 16px/1.2 var(--display);margin:0 0 8px}
         </label>
       </div>
       <p class="note" style="margin-top:10px">Valores de referencia de 2026, editables. El consumo se completa solo según el modelo.</p>
-      <div class="field" style="margin-top:12px">
+      <div class="field" style="margin-top:12px" id="zoneField">
         <span class="label">Tu zona de salida</span>
         <div class="zones" id="zones"></div>
         <p class="note">También podés arrastrar el pin <b>Vos</b> en el mapa.</p>
@@ -989,6 +989,14 @@ h3{font:800 16px/1.2 var(--display);margin:0 0 8px}
     <button type="submit" class="cta" id="authGo">Crear mi cuenta</button>
     <p class="note" id="authNote">Con mail institucional o con el código entrás directo. Si no, un administrador de la comunidad aprueba tu ingreso.</p>
   </form>
+  <div class="authcard" id="locGate" hidden>
+    <h1 class="wordmark">cam<span>pool</span></h1>
+    <h3 style="margin:0">Activá tu ubicación</h3>
+    <p class="note">Campool usa tu ubicación real para mostrarte quién viaja cerca tuyo. Nadie ve tu dirección: los demás solo ven una zona de unas 2 cuadras.</p>
+    <p class="autherr" id="locErr" role="alert" hidden></p>
+    <button type="button" class="cta" id="locGo">Activar ubicación</button>
+    <button type="button" class="link" id="locSkip" hidden>Entrar solo a mirar, sin publicar ni pedir viajes</button>
+  </div>
   <div class="authcard" id="pending" hidden>
     <h1 class="wordmark">cam<span>pool</span></h1>
     <h3 id="pendT" style="margin:0">Tu cuenta espera aprobación</h3>
@@ -3682,6 +3690,7 @@ const DAYS=(()=>{const out=[], t=new Date(); for(let i=0;out.length<6&&i<9;i++){
 const S = {org:'itba', sede:'sdt', role:'pas', enterUntil:0, liveOn:true, me:[-34.5850,-58.4270], sel:null, ri:0, req:{}, kml:CARS[0][1], people:3,
            fuel:2050, tollAu:6100, tollIllia:2550, live:false, liveRoutes:false, base:'esq', canVec:false, tok:0, myRoutes:null, day:Math.max(0,DAYS.findIndex(d=>d.dow>=1&&d.dow<=5)), plans:[], form:null};
 S.form={days:[DAYS[S.day].dow], time:'08:00', back:'', rep:true}; S.meet={};
+S.located=true;   // en el modo real pasa a false hasta que la persona comparte su ubicación
 try{const p=JSON.parse(localStorage.getItem('campool-plans')||'[]'); if(Array.isArray(p)) S.plans=p.slice(0,20);}catch(e){}
 const savePlans=()=>{try{localStorage.setItem('campool-plans',JSON.stringify(S.plans));}catch(e){}};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -3774,7 +3783,7 @@ const tollNames = r => r.tolls.map(t=>t==='illia'?'Illia':'25 de Mayo / P. Moren
 /* ---------- Mapa ---------- */
 let map=null, G={};
 function initMap(){
-  map=L.map('map',{zoomControl:false,preferCanvas:true,minZoom:10,maxZoom:18,zoomSnap:0.5,maxBounds:[[-34.80,-58.68],[-34.38,-58.22]]}).setView([-34.595,-58.44],12);
+  map=L.map('map',{zoomControl:false,preferCanvas:true,minZoom:9,maxZoom:18,zoomSnap:0.5,maxBounds:[[-35.25,-59.35],[-34.05,-57.65]]}).setView([-34.595,-58.44],12);
   L.control.zoom({position:'bottomright'}).addTo(map);
   map.attributionControl.setPrefix('');
   map.createPane('labels').style.zIndex=450; map.getPane('labels').style.pointerEvents='none';
@@ -3853,9 +3862,10 @@ function drawStatic(){
   } else {
     for(const p of pax()){const c=zc(p); zone(c,css('--pax'),true).addTo(G.zones); dot(c,p.ini,'pax').addTo(G.people);}
   }
+  if(!S.located) return;   // sin ubicación compartida no se dibuja el pin
   zone(blur(S.me,'me'),css('--ink'),false).addTo(G.zones);
-  const me=L.marker(S.me,{draggable:true,zIndexOffset:1000,icon:L.divIcon({className:'pin me',html:'<div>Vos</div>',iconSize:[0,0]})}).addTo(G.me);
-  me.on('dragend',()=>{const p=me.getLatLng(); setMe([p.lat,p.lng]);});
+  const me=L.marker(S.me,{draggable:!REAL,zIndexOffset:1000,icon:L.divIcon({className:'pin me',html:'<div>Vos</div>',iconSize:[0,0]})}).addTo(G.me);
+  if(!REAL) me.on('dragend',()=>{const p=me.getLatLng(); setMe([p.lat,p.lng]);});   // en el modo real el pin sale solo de la ubicación del dispositivo
 }
 let animTok=0;
 function cumul(c){const s=[0]; for(let i=1;i<c.length;i++) s.push(s[i-1]+hav(c[i-1],c[i])); return s;}
@@ -3874,10 +3884,10 @@ function drawRoutes(fit, anim){
   const alt=(r,i)=>L.polyline(r.coords,{color:'#7a6f9c',weight:5,opacity:.9,dashArray:'1 9'}).on('click',()=>pick(i)).addTo(G.routes);
   if(S.role==='pas'){
     const d=DRIVERS.find(x=>x.id===S.sel);
-    if(d&&d.routes){d.routes.forEach((r,i)=>{if(i!==S.ri) alt(r,i);}); main(d.routes[S.ri]||d.routes[0]); focus=[...(d.routes[S.ri]||d.routes[0]).coords,S.me];}
+    if(d&&d.routes){d.routes.forEach((r,i)=>{if(i!==S.ri) alt(r,i);}); main(d.routes[S.ri]||d.routes[0]); focus=[...(d.routes[S.ri]||d.routes[0]).coords,...(S.located?[S.me]:[])];}
     else for(const x of drv()) if(x.routes) L.polyline(x.routes[0].coords,{color:blue,weight:x.fresh>performance.now()?6:4,opacity:x.fresh>performance.now()?.9:.45}).on('click',()=>select(x.id)).addTo(G.routes);
   } else if(S.myRoutes){S.myRoutes.forEach((r,i)=>{if(i!==S.ri) alt(r,i);}); const r=S.myRoutes[S.ri]||S.myRoutes[0]; main(r); focus=r.coords;}
-  if(fit) fitTo(focus||[sede().ll,S.me,...(S.role==='pas'?drv():pax()).map(x=>x.ll)]);
+  if(fit) fitTo(focus||[sede().ll,...(S.located?[S.me]:[]),...(S.role==='pas'?drv():pax()).map(x=>x.ll)]);
 }
 
 /* ---------- Panel ---------- */
@@ -3933,6 +3943,7 @@ function schedForm(con){ const f=S.form;
       <label class="check wide" for="fRep"><input id="fRep" type="checkbox" ${f.rep?'checked':''}> Repetir todas las semanas</label>
     </div>
     <button type="button" class="cta" data-act="plan" style="margin-top:12px">${con?'Programar viaje':'Programar pedido'}</button></div>`; }
+function needLoc(){ return '<div class="card"><h3>Falta tu ubicación</h3><p class="note" style="margin-bottom:10px">Para pedir o publicar viajes, Campool necesita tu ubicación real. Los demás solo ven una zona de 2 cuadras.</p><button type="button" class="cta" data-act="needloc">Activar ubicación</button></div>'; }
 function topCards(){ return incomingCard()+adminCard()+plansCard(); }
 function renderOut(force){
   const o=$('out'), s=sede(), a=document.activeElement;
@@ -3945,7 +3956,7 @@ function renderOut(force){
       const freeSum=list.reduce((a,x)=>a+x.free,0), cap=day().on[0].toUpperCase()+day().on.slice(1);
       o.innerHTML=stepper()+topCards()+`<div class="listhead"><h3 style="margin:0">Viajes ${day().of} a ${s.name}</h3>${REAL?'<span class="livepill"><i></i>En vivo</span>':`<button type="button" class="livepill ${S.liveOn?'':'off'}" data-act="live" aria-pressed="${S.liveOn}"><i></i>${S.liveOn?'En vivo · simulación':'Simulación en pausa'}</button>`}</div><p class="pulse">${cap} en ${org().name}: <b>${list.length}</b> ${list.length===1?'viaje':'viajes'} · <b>${freeSum}</b> lugares libres · <b>${pax().length}</b> personas buscando</p>`+(list.length?'':`<div class="empty">Todavía no hay viajes publicados para ${day().on}. Probá otro día o programá tu pedido.</div>`)+`<div class="rides ${performance.now()<S.enterUntil?'enter':''}">`+list.map((x,ix)=>{const taken=seatsOf(x)-x.free, isNew=x.fresh>performance.now(), r=x.routes&&x.routes[0], c=r&&cost(r,x.kml,taken+2);
         return `<button type="button" class="ride ${isNew?'new':''}" style="--i:${ix}" data-act="sel" data-id="${x.id}"><span class="av">${esc(x.ini)}</span><span><span class="who">${esc(x.name)}</span> <span class="meta">${repTxt(x)}</span><br><span class="meta">${esc(x.who)}</span><br><span class="meta">Sale ${esc(x.time)} de ${esc(x.zone)} · ${esc(x.car)}</span><span class="chips">${x.mine?'<span class="chip best">Tu viaje</span>':ix===0&&x.near!=null&&list.length>1?'<span class="chip best">Mejor para vos</span>':''}${isNew?'<span class="chip fresh">Recién publicado</span>':''}<span class="chip ${x.free<=1?'hot':'seat'}">${seats(taken+1,x.free)} ${x.free===0?'Completo':x.free===1?'Último lugar':x.free+' lugares'}</span>${x.near!=null&&x.near<0.8?'<span class="chip near">Pasa a '+nearTxt(x.near)+' de tu zona</span>':(x.near!=null?'<span class="chip">Pasa a '+nearTxt(x.near)+'</span>':'')}</span></span><span class="price"><b>${c?money10(c.per):'…'}</b><small>por persona</small></span></button>`;}).join('')+`</div>
-        <p class="note">Cada círculo del mapa marca una zona de unas 2 cuadras, corrida al azar: nadie ve tu dirección. El punto de encuentro exacto aparece cuando el conductor te acepta. Arrastrá el pin <b>Vos</b> o tocá el botón de ubicación del mapa para cambiar tu zona.</p>`+(REAL?'':rankCard())+schedForm(false);
+        <p class="note">Cada círculo del mapa marca una zona de unas 2 cuadras, corrida al azar: nadie ve tu dirección. El punto de encuentro exacto aparece cuando el conductor te acepta. ${REAL?'Tu zona sale de tu ubicación real; tocá el botón de ubicación del mapa para actualizarla.':'Arrastrá el pin <b>Vos</b> o tocá el botón de ubicación del mapa para cambiar tu zona.'}</p>`+(S.located?'':needLoc())+(REAL?'':rankCard())+schedForm(false);
       return;
     }
     const taken=seatsOf(d)-d.free, people=taken+2, r=d.routes&&(d.routes[S.ri]||d.routes[0]), rq=reqOf(d), st=rq.st, first=esc(d.name.split(' ')[0]);
@@ -3962,6 +3973,7 @@ function renderOut(force){
         :`<button type="button" class="cta" data-act="req">Pedir un lugar para ${day().on}</button><p class="note">Hasta que te acepten solo ves la zona de salida, no la dirección.</p>`}`;
     return;
   }
+  if(!S.located){ o.innerHTML=stepper()+topCards()+needLoc(); return; }
   const rs=S.myRoutes, r=rs&&(rs[S.ri]||rs[0]);
   if(!r){o.innerHTML=stepper()+topCards()+'<p class="note">Calculando rutas…</p>'; return;}
   const near=pax().map(p=>({p,d:distToLine(p.ll,r.coords)})).sort((a,b)=>a.d-b.d);
@@ -3975,8 +3987,8 @@ let toastT; function toast(m){const t=$('toast'); t.textContent=m; t.hidden=fals
 async function refresh(fit){
   const tok=++S.tok, s=sede(); renderOut(); drawStatic(); drawRoutes(fit,false);
   if(S.role==='pas'){
-    for(const d of drv()){ if(!d.routes) d.routes=await routes(d.ll,s.ll); if(tok!==S.tok) return; d.near=distToLine(S.me,d.routes[0].coords); if(!S.sel){renderOut(); drawRoutes(false);} }
-  } else { S.myRoutes=await routes(S.me,s.ll); if(tok!==S.tok) return; if(S.ri>=S.myRoutes.length) S.ri=0; }
+    for(const d of drv()){ if(!d.routes) d.routes=await routes(d.ll,s.ll); if(tok!==S.tok) return; d.near=S.located?distToLine(S.me,d.routes[0].coords):null; if(!S.sel){renderOut(); drawRoutes(false);} }
+  } else if(S.located){ S.myRoutes=await routes(S.me,s.ll); if(tok!==S.tok) return; if(S.ri>=S.myRoutes.length) S.ri=0; }
   renderOut(); drawRoutes(fit,fit); badge();
 }
 const enter=()=>{S.enterUntil=performance.now()+450;};
@@ -4003,6 +4015,7 @@ $('out').addEventListener('click',e=>{const b=e.target.closest('[data-act]'); if
   else if(a==='back'){S.sel=null; S.ri=0; enter(); renderOut(); drawStatic(); drawRoutes(true);}
   else if(a==='live'){S.liveOn=!S.liveOn; renderOut();}
   else if(a==='route') pick(+b.dataset.i);
+  else if(a==='needloc'||(REAL&&!S.located&&(a==='req'||a==='plan'))){ askLocation().then(()=>refresh(true)); }
   else if(a==='req'&&REAL){ b.disabled=true; realRequest(DRIVERS.find(x=>x.id===S.sel)); }
   else if(a==='cancelreq'){ realCancel(b.dataset.id); }
   else if(a==='accept'||a==='reject'){ b.disabled=true; realRespond(b.dataset.id, a==='accept'); }
@@ -4055,13 +4068,33 @@ $('dlgClose').addEventListener('click',()=>{const d=$('dlg'); if(d.close) d.clos
 $('copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(SHARE_URL); $('copy').textContent='Link copiado';}catch(e){$('copy').textContent='Copialo a mano desde arriba';} setTimeout(()=>$('copy').textContent='Copiar link',2200);});
 
 /* ---------- Ubicación real ---------- */
-$('locate').addEventListener('click',()=>{
-  if(!navigator.geolocation){ toast('Este navegador no comparte la ubicación. Arrastrá el pin Vos.'); return; }
+const AREA=[[-35.25,-59.35],[-34.05,-57.65]];   // Buenos Aires y alrededores
+// Primero pide la posición precisa (GPS); si tarda o no hay, prueba con la aproximada (redes).
+function getPos(){ return new Promise((res,rej)=>{ if(!navigator.geolocation) return rej({code:0});
+  navigator.geolocation.getCurrentPosition(res, e1=>{ if(e1&&e1.code===1) return rej(e1);
+    navigator.geolocation.getCurrentPosition(res, rej, {enableHighAccuracy:false,timeout:20000,maximumAge:300000}); }, {enableHighAccuracy:true,timeout:12000,maximumAge:30000}); }); }
+async function locate(){ const p=await getPos(), ll=[p.coords.latitude,p.coords.longitude];
+  if(!(ll[0]>AREA[0][0]&&ll[0]<AREA[1][0]&&ll[1]>AREA[0][1]&&ll[1]<AREA[1][1])) throw {area:true}; return ll; }
+function locMsg(e){ const ua=navigator.userAgent||'', inapp=/Instagram|FBAN|FBAV|FB_IAB|Line\/|TikTok|musical_ly/i.test(ua), ios=/iPhone|iPad|iPod/i.test(ua);
+  if(e&&e.area) return 'Campool funciona por ahora en Buenos Aires y alrededores, y tu ubicación quedó fuera de esa zona.';
+  if(!e||e.code===0||e.code===undefined) return 'Este navegador no permite compartir la ubicación. Abrí la página en Chrome o Safari.';
+  if(e.code===1) return (inapp?'Estás dentro del navegador de otra app, que bloquea la ubicación: abrí el link en Chrome o Safari. ':'')+'El permiso de ubicación está bloqueado. '
+    +(ios?'En el iPhone: Ajustes → Privacidad y seguridad → Localización. Activala y permitila para Safari o Chrome. Después volvé acá y tocá el botón.':'Tocá el candado que está junto a la dirección de la página → Permisos → Ubicación → Permitir. Después tocá el botón de nuevo.');
+  if(e.code===2) return 'Tu dispositivo no pudo determinar dónde estás. Activá la ubicación (GPS) y probá de nuevo.';
+  return 'La ubicación tardó demasiado. Probá de nuevo, si podés cerca de una ventana.'; }
+// Pantalla de permiso: es lo primero que ve la persona al entrar en el modo real.
+function askLocation(){ return new Promise(done=>{ const g=$('locGate'), err=$('locErr'), go=$('locGo'), skip=$('locSkip');
+  $('auth').hidden=false; $('authForm').hidden=true; $('pending').hidden=true; g.hidden=false; err.hidden=true; skip.hidden=true;
+  const finish=()=>{ g.hidden=true; $('auth').hidden=true; go.onclick=null; skip.onclick=null; go.disabled=false; go.textContent='Activar ubicación'; done(); };
+  const run=async()=>{ go.disabled=true; go.textContent='Buscando tu ubicación…'; err.hidden=true;
+    try{ S.me=await locate(); S.located=true; S.myRoutes=null; DRIVERS.forEach(d=>{d.near=null;}); finish(); if(map) map.setView(S.me,Math.max(map.getZoom(),13)); }
+    catch(e){ err.textContent=locMsg(e); err.className='autherr'; err.hidden=false; go.disabled=false; go.textContent='Probar de nuevo'; skip.hidden=false; } };
+  go.onclick=run; skip.onclick=()=>{ S.located=false; finish(); }; run(); }); }
+$('locate').addEventListener('click',async()=>{
+  if(REAL){ await askLocation(); refresh(true); return; }
   toast('Buscando tu ubicación…');
-  navigator.geolocation.getCurrentPosition(p=>{ const ll=[p.coords.latitude,p.coords.longitude];
-    if(ll[0]<-34.80||ll[0]>-34.38||ll[1]<-58.68||ll[1]>-58.22){ toast('Estás fuera de la zona del mapa. Arrastrá el pin Vos.'); return; }
-    setMe(ll); if(map) map.setView(ll,Math.max(map.getZoom(),14)); toast('Listo. Los demás solo ven tu zona de 2 cuadras.');
-  },()=>toast('No pudimos obtener tu ubicación. Arrastrá el pin Vos.'),{enableHighAccuracy:false,timeout:9000,maximumAge:60000});
+  try{ const ll=await locate(); setMe(ll); if(map) map.setView(ll,Math.max(map.getZoom(),14)); toast('Listo. Los demás solo ven tu zona de 2 cuadras.'); }
+  catch(e){ toast(locMsg(e)+' También podés arrastrar el pin Vos.'); }
 });
 
 /* ---------- Modo real: cuentas, viajes y solicitudes guardados y en vivo ---------- */
@@ -4144,8 +4177,8 @@ function authMsg(er){ const m=String((er&&er.message)||er||'');
   if(/password/i.test(m)) return 'La contraseña tiene que tener al menos 8 caracteres.';
   if(/database error/i.test(m)) return 'No pudimos crear la cuenta. Revisá los datos y probá de nuevo.';
   return 'No pudimos conectarnos. Revisá tu conexión y probá de nuevo.'; }
-function showAuth(){ $('auth').hidden=false; $('authForm').hidden=false; $('pending').hidden=true; }
-function showPending(){ $('auth').hidden=false; $('authForm').hidden=true; $('pending').hidden=false; const bl=USER&&USER.status==='blocked';
+function showAuth(){ $('auth').hidden=false; $('authForm').hidden=false; $('pending').hidden=true; $('locGate').hidden=true; }
+function showPending(){ $('auth').hidden=false; $('authForm').hidden=true; $('pending').hidden=false; $('locGate').hidden=true; const bl=USER&&USER.status==='blocked';
   $('pendT').textContent=bl?'Tu ingreso no fue aprobado':'Tu cuenta espera aprobación'; $('pendP').textContent=bl?'Un administrador de la comunidad rechazó el pedido. Si creés que es un error, hablá con quien administra el grupo.':'Un administrador de tu comunidad tiene que aceptar tu ingreso. Cuando lo haga vas a poder ver y publicar viajes.'; $('pendRetry').hidden=bl; }
 let listening=false;
 async function enterApp(){
@@ -4154,15 +4187,18 @@ async function enterApp(){
   const {data:p,error}=await sb.from('profiles').select('*').eq('id',ses.user.id).maybeSingle();
   if(error||!p){ showAuth(); authErr('No encontramos tu perfil. Probá ingresar de nuevo.'); return; }
   USER=p; if(p.status!=='approved'){ showPending(); return; }
-  $('auth').hidden=true; S.org=ORGS.some(o=>o.id===p.org_id)?p.org_id:S.org; S.sede=org().sedes[0]; S.sel=null;
+  S.org=ORGS.some(o=>o.id===p.org_id)?p.org_id:S.org; S.sede=org().sedes[0]; S.sel=null;
   $('userBar').hidden=false; $('userName').textContent='Hola, '+short(p.name).split(' ')[0]+(p.role==='admin'?' · administrás '+org().name:'');
   $('foot').textContent='Versión de prueba con cuentas reales. Cada persona ve solo su comunidad y solo zonas de 2 cuadras. Proyecto independiente, sin relación oficial con las organizaciones nombradas.';
-  paintSeg(); await sync(); onSize(); refresh(true);
+  paintSeg(); const loading=sync();
+  if(!S.located) await askLocation(); else $('auth').hidden=true;   // el permiso de ubicación es lo primero que se pide
+  await loading; onSize(); refresh(true);
   if(!listening){ listening=true; listen(); }
   try{ const c=await sb.rpc('org_code'); RT.code=(c&&c.data)||null; }catch(e){}
 }
 function initReal(){
-  DRIVERS.length=0; PAX.length=0; ME={trips:0,streak:0,saved:0,co2:0};
+  DRIVERS.length=0; PAX.length=0; ME={trips:0,streak:0,saved:0,co2:0}; S.located=false;
+  $('zoneField').innerHTML='<span class="label">Tu zona de salida</span><p class="note">Sale de tu ubicación real; los demás ven solo un radio de 2 cuadras. Para actualizarla, tocá el botón de ubicación del mapa.</p>';
   sb=window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseKey);
   $('aOrg').innerHTML=ORGS.map(o=>`<option value="${o.id}">${o.name}</option>`).join(''); setTab('up');
   $('authTabs').addEventListener('click',e=>{const b=e.target.closest('button'); if(b) setTab(b.dataset.tab);});
@@ -4185,7 +4221,7 @@ function initReal(){
 function boot(){
   if(window.L) initMap();
   else $('map').innerHTML='<div class="nomap">No se pudo cargar el mapa. Revisá tu conexión y volvé a abrir la página. Los costos y las rutas aproximadas siguen funcionando en el panel.</div>';
-  if(REAL){ DRIVERS.length=0; PAX.length=0; }
+  if(REAL){ DRIVERS.length=0; PAX.length=0; S.located=false; }
   enter(); paintSeg(); renderImpact(); refresh(true).then(()=>{ if(map) tryLive(); });
   if(REAL) initReal(); else setTimeout(()=>{liveTick(); setInterval(liveTick,16000);},7000);
 }

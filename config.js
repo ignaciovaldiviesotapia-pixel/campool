@@ -4,6 +4,6 @@
 //   supabaseUrl: la "Project URL", por ejemplo https://abcdefgh.supabase.co
 //   supabaseKey: la clave PÚBLICA (figura como "anon" o "publishable"). Nunca la "service_role" ni la "secret".
 window.CAMPOOL_CONFIG = {
-  supabaseUrl: '',
-  supabaseKey: ''
+  supabaseUrl: 'https://avabhksoxlfqvziuhyfh.supabase.co',
+  supabaseKey: 'sb_publishable_fm1iLj0wdLF3OmRtqReSLg_ivd5KH9R'
 };

@@ -813,6 +813,10 @@ h3{font:800 16px/1.2 var(--display);margin:0 0 8px}
 .cta.wa{display:block;text-align:center;text-decoration:none;background:#128c7e;box-shadow:none;margin-top:8px}
 .locate{position:absolute;right:10px;bottom:86px;z-index:800;width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:#fff;display:grid;place-items:center;color:var(--route);box-shadow:0 1px 5px rgba(27,16,54,.3)}
 .locate svg{width:18px;height:18px}
+.livecard{border-color:var(--go);box-shadow:0 0 0 3px rgba(0,168,120,.14)}
+.livecard h3{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ghost.sos{color:#b00020;border-color:#f3b8c2}
+body.viewer .panel>.impact,body.viewer .panel>.field:not(#out),body.viewer #driverForm,body.viewer #foot,body.viewer #invite,body.viewer .legend,body.viewer #locate,body.viewer #userBar{display:none!important}
 .paxrow{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .paxrow:first-of-type{border-top:0}
 .paxrow .av{width:30px;height:30px;font-size:11px}
@@ -3699,7 +3703,7 @@ const day=()=>DAYS[S.day];
 const CFG=window.CAMPOOL_CONFIG||{};
 const REAL=!!(CFG.supabaseUrl&&CFG.supabaseKey&&window.supabase&&window.supabase.createClient);
 let sb=null, USER=null;
-const RT={trips:[],seeks:[],reqs:[],profiles:{},taken:{},code:null,seen:null};
+const RT={trips:[],seeks:[],reqs:[],profiles:{},taken:{},code:null,seen:null,lives:[]};
 const zc=x=>x.real?x.ll:blur(x.ll,x.id);            // centro de la zona visible
 const seatsOf=x=>x.seats||4;
 const repTxt=x=>x.real?'Miembro verificado':`★ ${x.rating.toLocaleString('es-AR',{minimumFractionDigits:1})} · ${x.trips} viajes`;
@@ -3853,7 +3857,7 @@ function badge(){
 function dot(ll, ini, cls){return L.marker(ll,{icon:L.divIcon({className:'pin dot '+(cls||''),html:'<div>'+esc(ini)+'</div>',iconSize:[0,0]}),keyboard:false});}
 function zone(ll, color, strong){return L.circle(ll,{radius:220,color,weight:strong?2:1.2,fillColor:color,fillOpacity:strong?0.22:0.14,interactive:false});}
 function drawStatic(){
-  if(!map) return; const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  if(!map||S.viewer) return; const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   G.sedes.clearLayers(); G.people.clearLayers(); G.zones.clearLayers(); G.me.clearLayers();
   for(const s of SEDES.filter(s=>org().sedes.includes(s.id))) L.marker(s.ll,{zIndexOffset:500,icon:L.divIcon({className:'pin',html:`<div class="sede ${s.id===S.sede?'on':''}"><b>${s.tag}</b><span>${s.name}</span></div>`,iconSize:[0,0]})}).on('click',()=>setSede(s.id)).addTo(G.sedes);
   if(S.role==='pas'){
@@ -3878,7 +3882,7 @@ function car(c, tok){ if(calm()||c.length<2) return; const s=cumul(c), T=s[s.len
   const m=L.marker(c[0],{interactive:false,keyboard:false,zIndexOffset:900,icon:L.divIcon({className:'pin car',html:'<div></div>',iconSize:[0,0]})}).addTo(G.routes);
   (function step(now){ if(tok!==animTok) return; m.setLatLng(at(c,s,T*(((now-t0)%D)/D)).p); requestAnimationFrame(step); })(t0);}
 function drawRoutes(fit, anim){
-  if(!map) return; G.routes.clearLayers(); const tok=++animTok, css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim(), blue=css('--route'); let focus=null; anim=anim&&!calm();
+  if(!map||S.viewer) return; G.routes.clearLayers(); const tok=++animTok, css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim(), blue=css('--route'); let focus=null; anim=anim&&!calm();
   const main=(r)=>{const start=anim?[r.coords[0],r.coords[0]]:r.coords, a=L.polyline(start,{color:'#fff',weight:9,opacity:.95,interactive:false}).addTo(G.routes), b=L.polyline(start,{color:blue,weight:5,interactive:false}).addTo(G.routes);
     if(anim) trace(r.coords,[a,b],tok); else car(r.coords,tok);};
   const alt=(r,i)=>L.polyline(r.coords,{color:'#7a6f9c',weight:5,opacity:.9,dashArray:'1 9'}).on('click',()=>pick(i)).addTo(G.routes);
@@ -3944,8 +3948,9 @@ function schedForm(con){ const f=S.form;
     </div>
     <button type="button" class="cta" data-act="plan" style="margin-top:12px">${con?'Programar viaje':'Programar pedido'}</button></div>`; }
 function needLoc(){ return '<div class="card"><h3>Falta tu ubicación</h3><p class="note" style="margin-bottom:10px">Para pedir o publicar viajes, Campool necesita tu ubicación real. Los demás solo ven una zona de 2 cuadras.</p><button type="button" class="cta" data-act="needloc">Activar ubicación</button></div>'; }
-function topCards(){ return incomingCard()+adminCard()+plansCard(); }
+function topCards(){ return liveCard()+incomingCard()+adminCard()+plansCard(); }
 function renderOut(force){
+  if(S.viewer) return;
   const o=$('out'), s=sede(), a=document.activeElement;
   // Si la persona está escribiendo en un campo del panel, no se lo pisamos: se actualiza al salir del campo.
   if(!force&&a&&o.contains(a)&&a.tagName==='INPUT'&&(a.type==='text'||a.type==='time')){ S.dirty=true; return; } S.dirty=false;
@@ -3954,7 +3959,7 @@ function renderOut(force){
     if(!d){
       const list=drv().sort((a,b)=>(a.mine?99:a.near??9)-(b.mine?99:b.near??9));
       const freeSum=list.reduce((a,x)=>a+x.free,0), cap=day().on[0].toUpperCase()+day().on.slice(1);
-      o.innerHTML=stepper()+topCards()+`<div class="listhead"><h3 style="margin:0">Viajes ${day().of} a ${s.name}</h3>${REAL?'<span class="livepill"><i></i>En vivo</span>':`<button type="button" class="livepill ${S.liveOn?'':'off'}" data-act="live" aria-pressed="${S.liveOn}"><i></i>${S.liveOn?'En vivo · simulación':'Simulación en pausa'}</button>`}</div><p class="pulse">${cap} en ${org().name}: <b>${list.length}</b> ${list.length===1?'viaje':'viajes'} · <b>${freeSum}</b> lugares libres · <b>${pax().length}</b> personas buscando</p>`+(list.length?'':`<div class="empty">Todavía no hay viajes publicados para ${day().on}. Probá otro día o programá tu pedido.</div>`)+`<div class="rides ${performance.now()<S.enterUntil?'enter':''}">`+list.map((x,ix)=>{const taken=seatsOf(x)-x.free, isNew=x.fresh>performance.now(), r=x.routes&&x.routes[0], c=r&&cost(r,x.kml,taken+2);
+      o.innerHTML=stepper()+topCards()+`<div class="listhead"><h3 style="margin:0">Viajes ${day().of} a ${s.name}</h3>${REAL?'<span class="livepill"><i></i>En vivo</span>':`<button type="button" class="livepill ${S.liveOn?'':'off'}" data-act="live" aria-pressed="${S.liveOn}"><i></i>${S.liveOn?'En vivo · simulación':'Simulación en pausa'}</button>`}</div><p class="pulse">${cap} en ${org().name}: <b>${list.length}</b> ${list.length===1?'viaje':'viajes'} · <b>${freeSum}</b> ${freeSum===1?'lugar libre':'lugares libres'} · <b>${pax().length}</b> ${pax().length===1?'persona buscando':'personas buscando'}</p>`+(list.length?'':`<div class="empty">Todavía no hay viajes publicados para ${day().on}. Probá otro día o programá tu pedido.</div>`)+`<div class="rides ${performance.now()<S.enterUntil?'enter':''}">`+list.map((x,ix)=>{const taken=seatsOf(x)-x.free, isNew=x.fresh>performance.now(), r=x.routes&&x.routes[0], c=r&&cost(r,x.kml,taken+2);
         return `<button type="button" class="ride ${isNew?'new':''}" style="--i:${ix}" data-act="sel" data-id="${x.id}"><span class="av">${esc(x.ini)}</span><span><span class="who">${esc(x.name)}</span> <span class="meta">${repTxt(x)}</span><br><span class="meta">${esc(x.who)}</span><br><span class="meta">Sale ${esc(x.time)} de ${esc(x.zone)} · ${esc(x.car)}</span><span class="chips">${x.mine?'<span class="chip best">Tu viaje</span>':ix===0&&x.near!=null&&list.length>1?'<span class="chip best">Mejor para vos</span>':''}${isNew?'<span class="chip fresh">Recién publicado</span>':''}<span class="chip ${x.free<=1?'hot':'seat'}">${seats(taken+1,x.free)} ${x.free===0?'Completo':x.free===1?'Último lugar':x.free+' lugares'}</span>${x.near!=null&&x.near<0.8?'<span class="chip near">Pasa a '+nearTxt(x.near)+' de tu zona</span>':(x.near!=null?'<span class="chip">Pasa a '+nearTxt(x.near)+'</span>':'')}</span></span><span class="price"><b>${c?money10(c.per):'…'}</b><small>por persona</small></span></button>`;}).join('')+`</div>
         <p class="note">Cada círculo del mapa marca una zona de unas 2 cuadras, corrida al azar: nadie ve tu dirección. El punto de encuentro exacto aparece cuando el conductor te acepta. ${REAL?'Tu zona sale de tu ubicación real; tocá el botón de ubicación del mapa para actualizarla.':'Arrastrá el pin <b>Vos</b> o tocá el botón de ubicación del mapa para cambiar tu zona.'}</p>`+(S.located?'':needLoc())+(REAL?'':rankCard())+schedForm(false);
       return;
@@ -4016,6 +4021,9 @@ $('out').addEventListener('click',e=>{const b=e.target.closest('[data-act]'); if
   else if(a==='live'){S.liveOn=!S.liveOn; renderOut();}
   else if(a==='route') pick(+b.dataset.i);
   else if(a==='needloc'||(REAL&&!S.located&&(a==='req'||a==='plan'))){ askLocation().then(()=>refresh(true)); }
+  else if(a==='golive'){ b.disabled=true; liveStart(b.dataset.id); }
+  else if(a==='endlive'){ b.disabled=true; liveStop(b.dataset.id); }
+  else if(a==='copylive'){ navigator.clipboard.writeText(b.dataset.url).then(()=>toast('Link copiado.'),()=>toast('No se pudo copiar. Usá el botón de WhatsApp.')); }
   else if(a==='req'&&REAL){ b.disabled=true; realRequest(DRIVERS.find(x=>x.id===S.sel)); }
   else if(a==='cancelreq'){ realCancel(b.dataset.id); }
   else if(a==='accept'||a==='reject'){ b.disabled=true; realRespond(b.dataset.id, a==='accept'); }
@@ -4141,10 +4149,16 @@ async function sync(){ if(!USER) return;
   RT.taken={}; ((tk&&tk.data)||[]).forEach(x=>{RT.taken[x.trip_id+':'+x.dow]=x.n;});
   if(RT.profiles[USER.id]) USER=RT.profiles[USER.id];
   if(USER.status!=='approved'){ showPending(); return; }
+  // Viajes en curso que puedo ver. Si la tabla todavía no existe en la base, la función queda oculta sin romper nada.
+  try{ const lv=await sb.from('live_trips').select('id,token,trip_id,started_by,label,dest_name,started_at,ended_at'); S.noLive=!!lv.error;
+    RT.lives=(lv.data||[]).filter(l=>!l.ended_at&&Date.now()-new Date(l.started_at).getTime()<8*3600e3); }catch(e){ S.noLive=true; RT.lives=[]; }
+  const mineLive=RT.lives.find(l=>l.started_by===USER.id); if(mineLive) startTrack(mineLive.id); else if(TRK.id) stopTrack();
   rebuild(); }
 let syncT=null; const syncSoon=()=>{ clearTimeout(syncT); syncT=setTimeout(sync,350); };
 function listen(){
-  try{ const ch=sb.channel('campool'); ['trips','seeks','requests','profiles'].forEach(tb=>ch.on('postgres_changes',{event:'*',schema:'public',table:tb},syncSoon)); ch.subscribe(); }catch(e){}
+  try{ const ch=sb.channel('campool'); ['trips','seeks','requests','profiles'].forEach(tb=>ch.on('postgres_changes',{event:'*',schema:'public',table:tb},syncSoon));
+    ch.on('postgres_changes',{event:'*',schema:'public',table:'live_trips'},p=>{ if(p.eventType!=='UPDATE'||(p.new&&p.new.ended_at)) syncSoon(); });   // las posiciones no disparan recargas
+    ch.subscribe(); }catch(e){}
   setInterval(()=>{ if(!document.hidden) sync(); },45000);
   document.addEventListener('visibilitychange',()=>{ if(!document.hidden) sync(); });
 }
@@ -4164,6 +4178,67 @@ async function realPlan(){ const f=S.form, con=S.role==='con', z=blur(S.me,USER.
   await sync(); renderOut(true); $('out').scrollIntoView({block:'start',behavior:'smooth'}); }
 async function realDelPlan(pid){ const [kind,id]=pid.split(':'); const res=kind==='req'?await sb.rpc('cancel_request',{req:id}):await sb.from(kind==='trip'?'trips':'seeks').delete().eq('id',id);
   if(res.error) toast('No se pudo cancelar. Probá de nuevo.'); await sync(); renderOut(true); }
+/* --- Viaje en vivo: quien participa lo comparte y cualquiera con el link lo sigue --- */
+const TRK={id:null,w:null,t:0,ll:null,lock:null,beat:null};
+const siteBase=()=>hosted?location.origin+location.pathname:(PUBLIC_URL||location.href.split('#')[0].split('?')[0]);
+const liveUrl=tok=>siteBase()+'?viaje='+encodeURIComponent(tok);
+function ping(ll){ TRK.t=Date.now(); TRK.ll=ll; sb.rpc('live_ping',{lid:TRK.id,lat:ll[0],lng:ll[1]}).then(()=>{},()=>{}); }
+async function keepAwake(){ try{ if(TRK.id&&'wakeLock' in navigator) TRK.lock=await navigator.wakeLock.request('screen'); }catch(e){} }
+function startTrack(id){ if(TRK.id===id||!navigator.geolocation) return; stopTrack(); TRK.id=id;
+  TRK.w=navigator.geolocation.watchPosition(p=>{ const ll=[p.coords.latitude,p.coords.longitude], dt=Date.now()-TRK.t;
+    if(dt<4000||(TRK.ll&&hav(ll,TRK.ll)<0.02&&dt<15000)) return; ping(ll); },()=>{},{enableHighAccuracy:true,maximumAge:5000,timeout:30000});
+  TRK.beat=setInterval(()=>{ if(TRK.ll&&Date.now()-TRK.t>18000) ping(TRK.ll); },6000);   // aunque el auto esté quieto, avisa que sigue activo
+  keepAwake(); }
+function stopTrack(){ if(TRK.w!==null&&navigator.geolocation) navigator.geolocation.clearWatch(TRK.w); clearInterval(TRK.beat); if(TRK.lock){ try{TRK.lock.release();}catch(e){} }
+  TRK.id=null; TRK.w=null; TRK.lock=null; TRK.ll=null; TRK.t=0; }
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&TRK.id) keepAwake(); });
+async function liveStart(tripId){ if(!S.located){ await askLocation(); if(!S.located){ renderOut(true); return; } }
+  const tr=RT.trips.find(x=>x.id===tripId); if(!tr){ renderOut(true); return; }
+  const a=new Uint8Array(18); crypto.getRandomValues(a); const tok=btoa(String.fromCharCode.apply(null,a)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  const sd=SEDES.find(x=>x.id===tr.sede)||{}, dn=short((RT.profiles[tr.driver_id]||{}).name);
+  const {error}=await sb.from('live_trips').insert({token:tok,trip_id:tripId,label:`Maneja ${dn} · ${tr.car||'Auto'}`,dest_name:sd.name||'',dest_lat:sd.ll?sd.ll[0]:null,dest_lng:sd.ll?sd.ll[1]:null});
+  if(error){ toast('No se pudo iniciar el viaje en vivo. Probá de nuevo.'); renderOut(true); return; }
+  await sync(); if(TRK.id) ping(S.me); toast('Viaje en vivo iniciado. Compartí el link.'); renderOut(true); $('out').scrollIntoView({block:'start',behavior:'smooth'}); }
+async function liveStop(id){ const {error}=await sb.rpc('live_end',{lid:id}); if(error) toast('No se pudo finalizar. Probá de nuevo.'); else { stopTrack(); toast('Viaje finalizado. El link deja de mostrar tu posición.'); } await sync(); renderOut(true); }
+function liveCard(){ if(!REAL||!USER||S.noLive) return ''; const out=[], sn=id=>(SEDES.find(s=>s.id===id)||{}).name||id;
+  for(const l of RT.lives){ const mine=l.started_by===USER.id, url=liveUrl(l.token);
+    out.push(`<div class="card livecard"><h3><span class="livepill"><i></i>En vivo</span>${mine?'Estás compartiendo tu viaje':esc(short((RT.profiles[l.started_by]||{}).name))+' comparte el viaje'}</h3>
+      <p class="note">${esc(l.label)}${l.dest_name?' · va a '+esc(l.dest_name):''}. Quien tenga el link ve por dónde van, sin cuenta.</p>
+      ${mine?'<p class="note"><b>Dejá esta página abierta y la pantalla encendida</b>: si la cerrás, la posición deja de actualizarse.</p>':''}
+      <a class="cta wa" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent('Seguí mi viaje en vivo en Campool: '+url)}">Compartir por WhatsApp</a>
+      <div class="row2"><button type="button" class="ghost" data-act="copylive" data-url="${esc(url)}">Copiar link</button><a class="ghost" target="_blank" rel="noopener" href="${esc(url)}">Ver el mapa</a></div>
+      <div class="row2">${mine?`<button type="button" class="ghost" data-act="endlive" data-id="${esc(l.id)}">Finalizar viaje</button>`:'<span></span>'}<a class="ghost sos" href="tel:911">Llamar al 911</a></div></div>`); }
+  if(RT.lives.some(l=>l.started_by===USER.id)) return out.join('');
+  const can=[];
+  RT.trips.filter(tr=>tr.driver_id===USER.id).forEach(tr=>can.push({id:tr.id,txt:`Tu viaje de las ${tr.depart} a ${sn(tr.sede)}`}));
+  RT.reqs.filter(r=>r.passenger_id===USER.id&&r.status==='accepted').forEach(r=>{ const tr=RT.trips.find(x=>x.id===r.trip_id); if(tr&&!can.some(c=>c.id===tr.id)) can.push({id:tr.id,txt:`${r.day_label} · ${tr.depart} · con ${short((RT.profiles[tr.driver_id]||{}).name)}`}); });
+  if(can.length) out.push(`<div class="card"><h3>Viaje en vivo</h3><p class="note" style="margin-bottom:6px">Cuando arranque el viaje, compartilo: familia o amigos lo siguen en el mapa con un link, sin cuenta.</p>${can.map(c=>`<div class="paxrow"><span style="flex:1" class="meta">${esc(c.txt)}</span><button type="button" class="link" data-act="golive" data-id="${esc(c.id)}">Iniciar y compartir</button></div>`).join('')}</div>`);
+  return out.join(''); }
+/* Página pública del viaje: se abre con el link, sin cuenta, y se actualiza sola. */
+function initViewer(tok){
+  document.body.classList.add('viewer'); S.viewer=true; S.located=false; DRIVERS.length=0; PAX.length=0;
+  sb=window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseKey);
+  const hm=d=>new Date(d).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',hour12:false}); let fitted=false, last=null;
+  const paint=(v,err)=>{ const o=$('out'); let h;
+    if(err&&!last) h='<div class="card"><h3>Viaje en vivo</h3><div class="state pend">No pudimos cargar el viaje<small>Revisá tu conexión. La página vuelve a intentar sola.</small></div></div>';
+    else if(!v&&!err) h='<div class="card"><h3>Este link ya no está activo</h3><p class="note">El viaje terminó hace más de media hora, o el link está incompleto. Pedile a la persona que te lo vuelva a mandar.</p></div>';
+    else { v=v||last; last=v; const secs=v.last_at?Math.max(0,Math.round((Date.now()-new Date(v.last_at).getTime())/1000)):null, ago=secs===null?'':secs<60?`hace ${secs} s`:`hace ${Math.round(secs/60)} min`;
+      const st=v.ended_at?`<div class="state pend">Viaje finalizado a las ${hm(v.ended_at)}<small>La última posición quedó marcada en el mapa.</small></div>`
+        :secs===null?'<div class="state pend">Esperando la primera posición…<small>Aparece en el mapa apenas el teléfono la envíe.</small></div>'
+        :secs>120?`<div class="state pend">Sin posición nueva ${ago}<small>Puede que el teléfono se haya quedado sin señal o que hayan cerrado la página.</small></div>`
+        :`<div class="state ok">En curso · última posición ${ago}<small>Esta página se actualiza sola cada pocos segundos.</small></div>`;
+      h=`<div class="card"><h3><span class="livepill ${v.ended_at?'off':''}"><i></i>${v.ended_at?'Finalizado':'En vivo'}</span></h3><p class="who" style="margin:8px 0 2px">${esc(v.label)}</p><p class="note" style="margin-bottom:10px">Salió a las ${hm(v.started_at)}${v.dest_name?' · va a '+esc(v.dest_name):''}</p>${st}
+        <a class="ghost sos" style="margin-top:10px" href="tel:911">Llamar al 911</a><p class="note" style="margin-top:6px">Si algo no está bien, llamá al 911.</p></div>`; }
+    o.innerHTML=h;
+    if(!map||!v) return; G.routes.clearLayers(); const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim(), tr=Array.isArray(v.trail)?v.trail.filter(p=>Array.isArray(p)&&isFinite(p[0])&&isFinite(p[1])):[], pts=[];
+    if(tr.length>1){ L.polyline(tr,{color:'#fff',weight:9,opacity:.95,interactive:false}).addTo(G.routes); L.polyline(tr,{color:css('--route'),weight:5,interactive:false}).addTo(G.routes); }
+    if(v.dest_lat!=null){ const d=[v.dest_lat,v.dest_lng]; pts.push(d); L.marker(d,{interactive:false,keyboard:false,icon:L.divIcon({className:'pin',html:`<div class="sede on"><b>Destino</b><span>${esc(v.dest_name||'')}</span></div>`,iconSize:[0,0]})}).addTo(G.routes); }
+    if(v.last_lat!=null){ const c=[v.last_lat,v.last_lng]; pts.push(c,...tr); L.marker(c,{interactive:false,keyboard:false,zIndexOffset:900,icon:L.divIcon({className:'pin car',html:'<div></div>',iconSize:[0,0]})}).addTo(G.routes);
+      if(!fitted){ fitted=true; fitTo(pts); } else if(!map.getBounds().pad(-0.15).contains(c)) map.panTo(c); } };
+  const tick=async()=>{ let v=null, err=false; try{ const r=await sb.rpc('live_view',{tok}); if(r.error) err=true; else v=(r.data||[])[0]||null; }catch(e){ err=true; } paint(v,err); };
+  $('out').innerHTML='<div class="card"><h3>Viaje en vivo</h3><p class="note">Cargando el viaje…</p></div>';
+  tick(); setInterval(()=>{ if(!document.hidden) tick(); },5000); document.addEventListener('visibilitychange',()=>{ if(!document.hidden) tick(); });
+}
 /* --- Ingreso --- */
 let authTab='up';
 function setTab(tab){ authTab=tab; document.querySelectorAll('#authTabs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.tab===tab)); document.querySelectorAll('#authForm [data-up]').forEach(el=>{el.hidden=tab!=='up';});
@@ -4218,9 +4293,11 @@ function initReal(){
 }
 
 /* ---------- Arranque ---------- */
+const VTOK=REAL?new URLSearchParams(location.search).get('viaje'):null;
 function boot(){
   if(window.L) initMap();
   else $('map').innerHTML='<div class="nomap">No se pudo cargar el mapa. Revisá tu conexión y volvé a abrir la página. Los costos y las rutas aproximadas siguen funcionando en el panel.</div>';
+  if(VTOK){ paintSeg(); initViewer(VTOK); if(map) tryLive(); return; }
   if(REAL){ DRIVERS.length=0; PAX.length=0; S.located=false; }
   enter(); paintSeg(); renderImpact(); refresh(true).then(()=>{ if(map) tryLive(); });
   if(REAL) initReal(); else setTimeout(()=>{liveTick(); setInterval(liveTick,16000);},7000);

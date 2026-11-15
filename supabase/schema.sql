@@ -76,6 +76,26 @@ create table if not exists public.requests (
   unique (trip_id, passenger_id, dow)
 );
 
+-- ============ Viajes en curso compartidos en vivo ============
+-- Quien participa de un viaje puede compartirlo mientras dura. El link lleva una clave larga al azar:
+-- cualquiera que lo tenga ve el recorrido, sin cuenta. Se apaga solo al terminar.
+create table if not exists public.live_trips (
+  id uuid primary key default gen_random_uuid(),
+  token text not null unique check (char_length(token) between 20 and 64),
+  trip_id uuid not null references public.trips on delete cascade,
+  started_by uuid not null default auth.uid() references public.profiles on delete cascade,
+  label text not null default '' check (char_length(label) <= 160),
+  dest_name text not null default '' check (char_length(dest_name) <= 80),
+  dest_lat double precision,
+  dest_lng double precision,
+  started_at timestamptz not null default now(),
+  ended_at timestamptz,
+  last_lat double precision,
+  last_lng double precision,
+  last_at timestamptz,
+  trail jsonb not null default '[]'::jsonb
+);
+
 -- ============ Funciones de apoyo ============
 create or replace function public.my_org() returns text
 language sql stable security definer set search_path = public as $$
@@ -160,6 +180,38 @@ begin
   delete from public.requests where id = req and passenger_id = auth.uid();
 end $$;
 
+-- Guarda la posición actual de un viaje en curso (solo quien lo inició). Conserva los últimos 400 puntos.
+create or replace function public.live_ping(lid uuid, lat double precision, lng double precision) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if lat is null or lng is null or lat not between -90 and 90 or lng not between -180 and 180 then return; end if;
+  -- Si el auto está quieto se actualiza la hora pero no se repite el punto en el recorrido.
+  update public.live_trips
+     set last_lat = lat, last_lng = lng, last_at = now(),
+         trail = case when trail -> -1 = jsonb_build_array(round(lat::numeric, 5), round(lng::numeric, 5)) then trail
+                      else (case when jsonb_array_length(trail) >= 400 then trail - 0 else trail end)
+                           || jsonb_build_array(jsonb_build_array(round(lat::numeric, 5), round(lng::numeric, 5))) end
+   where id = lid and started_by = auth.uid() and ended_at is null;
+end $$;
+
+create or replace function public.live_end(lid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  update public.live_trips set ended_at = now() where id = lid and started_by = auth.uid() and ended_at is null;
+end $$;
+
+-- Lo que ve cualquiera que tenga el link. Deja de responder 8 horas después de iniciado o 30 minutos después de finalizado.
+create or replace function public.live_view(tok text)
+returns table (label text, dest_name text, dest_lat double precision, dest_lng double precision, started_at timestamptz,
+               ended_at timestamptz, last_lat double precision, last_lng double precision, last_at timestamptz, trail jsonb)
+language sql stable security definer set search_path = public as $$
+  select l.label, l.dest_name, l.dest_lat, l.dest_lng, l.started_at, l.ended_at, l.last_lat, l.last_lng, l.last_at, l.trail
+    from public.live_trips l
+   where l.token = tok and char_length(tok) >= 20
+     and l.started_at > now() - interval '8 hours'
+     and (l.ended_at is null or l.ended_at > now() - interval '30 minutes')
+$$;
+
 -- ============ Reglas de acceso (cada quien ve solo su comunidad) ============
 alter table public.orgs enable row level security;      -- sin políticas: nadie lee los códigos desde la app
 alter table public.profiles enable row level security;
@@ -200,7 +252,23 @@ create policy requests_add on public.requests for insert to authenticated
               and exists (select 1 from public.trips t where t.id = trip_id and t.org_id = public.my_org() and t.driver_id <> auth.uid()));
 revoke update, delete on public.requests from anon, authenticated;   -- se responde y se cancela solo con las funciones de arriba
 
-revoke all on public.orgs, public.profiles, public.trips, public.seeks, public.requests from anon;
+alter table public.live_trips enable row level security;
+drop policy if exists live_read on public.live_trips;
+create policy live_read on public.live_trips for select to authenticated
+  using (started_by = auth.uid()
+         or exists (select 1 from public.trips t where t.id = live_trips.trip_id and t.driver_id = auth.uid())
+         or exists (select 1 from public.requests r where r.trip_id = live_trips.trip_id and r.passenger_id = auth.uid() and r.status = 'accepted'));
+drop policy if exists live_add on public.live_trips;
+create policy live_add on public.live_trips for insert to authenticated
+  with check (started_by = auth.uid() and ended_at is null and last_at is null
+              and (exists (select 1 from public.trips t where t.id = live_trips.trip_id and t.driver_id = auth.uid())
+                   or exists (select 1 from public.requests r where r.trip_id = live_trips.trip_id and r.passenger_id = auth.uid() and r.status = 'accepted')));
+revoke update, delete on public.live_trips from anon, authenticated;   -- la posición se guarda solo con live_ping
+
+revoke all on public.orgs, public.profiles, public.trips, public.seeks, public.requests, public.live_trips from anon;
+revoke execute on function public.live_ping(uuid, double precision, double precision), public.live_end(uuid) from public, anon;
+grant execute on function public.live_ping(uuid, double precision, double precision), public.live_end(uuid) to authenticated;
+grant execute on function public.live_view(text) to anon, authenticated;   -- el link público
 revoke execute on function public.approve_member(uuid, boolean), public.org_code(), public.taken_counts(),
   public.respond_request(uuid, boolean, text), public.cancel_request(uuid) from public, anon;
 grant execute on function public.approve_member(uuid, boolean), public.org_code(), public.taken_counts(),
@@ -213,5 +281,6 @@ do $$ begin
     begin alter publication supabase_realtime add table public.seeks; exception when duplicate_object then null; end;
     begin alter publication supabase_realtime add table public.requests; exception when duplicate_object then null; end;
     begin alter publication supabase_realtime add table public.profiles; exception when duplicate_object then null; end;
+    begin alter publication supabase_realtime add table public.live_trips; exception when duplicate_object then null; end;
   end if;
 end $$;

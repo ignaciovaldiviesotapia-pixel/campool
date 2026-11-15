@@ -38,6 +38,20 @@ Para cambiar los códigos o el dominio: en Supabase, **Table Editor → orgs**. 
 
 Aviso: mientras "Confirm email" esté desactivado, nadie comprueba que el mail sea de verdad de esa persona. Para abrirlo a más gente conviene volver a activarlo y configurar un servicio de envío de mails.
 
+## Viaje en vivo
+
+Quien participa de un viaje (conductor o pasajero aceptado) puede tocar **"Iniciar y compartir"** cuando arranca. Eso genera un link que cualquiera puede abrir, sin cuenta, para ver en el mapa por dónde van.
+
+- El teléfono que comparte tiene que dejar la página abierta y la pantalla encendida: una página web no puede seguir la ubicación en segundo plano.
+- El link deja de mostrar el viaje 30 minutos después de finalizado, o a las 8 horas de iniciado.
+- La página pública tiene un botón para llamar al 911.
+
+Si actualizaste desde una versión anterior, volvé a correr `supabase/schema.sql` completo en el SQL Editor: agrega la tabla del viaje en vivo y no toca lo que ya existe.
+
+## Ubicación
+
+Con cuentas reales, la app pide la ubicación apenas se entra y no deja ubicarse a mano. Sin ubicación se puede mirar, pero no publicar ni pedir viajes.
+
 ## Privacidad
 
 - De cada persona se guarda y se muestra solo una zona de unas 2 cuadras, corrida al azar. La dirección nunca sale del celular.

@@ -49,6 +49,20 @@ Quien participa de un viaje (conductor o pasajero aceptado) puede tocar **"Inici
 
 Si actualizaste desde una versión anterior, volvé a correr `supabase/schema.sql` completo en el SQL Editor: agrega la tabla del viaje en vivo y no toca lo que ya existe.
 
+## Lo que suma la versión 4 de la base
+
+Después de volver a correr `supabase/schema.sql`:
+
+- **Plan B**: si un conductor borra un viaje, cada persona con lugar pedido o aceptado recibe un aviso con acceso directo a los otros viajes de ese día. Si un pasajero cancela un lugar aceptado, se entera el conductor.
+- **Chat** entre el conductor y cada pasajero aceptado.
+- **Preferencias del viaje** (música, viaje tranquilo, mascotas, equipaje, sin humo) y viajes **solo entre mujeres**. El género es opcional, lo declara cada persona al registrarse y después no se puede cambiar.
+- **Reportes**: cualquier miembro puede reportar a otro; los lee solo quien administra, que puede darlo de baja o descartar el reporte.
+- **Números de la comunidad** para quien administra: lugares compartidos, km, ahorro y CO₂ estimado.
+
+## Recuperar la contraseña
+
+En "Ya tengo cuenta" hay un link "Olvidé mi contraseña", que manda un mail con un link para elegir una nueva. Para que ese link vuelva a tu sitio, en Supabase andá a **Authentication → URL Configuration** y poné la dirección de tu sitio de Netlify en **Site URL**. El servicio de mails gratuito de Supabase envía muy pocos por hora; para uso real hay que conectar un servicio de envío propio.
+
 ## Calificaciones
 
 Después de un viaje aceptado, conductor y pasajero se califican entre sí con 1 a 5 estrellas. Cada persona muestra su promedio; nadie ve quién puso cada nota.
